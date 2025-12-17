@@ -18,6 +18,18 @@
 #include "crypto_error.h"
 #include "cryptography_interface.h"
 
+#ifndef GCRY_CIPHER_MODE_GCM_SIV
+#define GCRY_CIPHER_MODE_GCM_SIV 0
+#endif
+#ifndef GCRY_CIPHER_MODE_SIV
+#define GCRY_CIPHER_MODE_SIV 0
+#endif
+#if GCRY_CIPHER_MODE_GCM_SIV && GCRY_CIPHER_MODE_SIV
+#define CRYPTO_HAVE_LIBGCRYPT_GCM_SIV 1
+#else
+#define CRYPTO_HAVE_LIBGCRYPT_GCM_SIV 0
+#endif
+
 // Cryptography Interface Initialization & Management Functions
 static int32_t cryptography_config(void);
 static int32_t cryptography_init(void);
@@ -863,10 +875,12 @@ static int32_t cryptography_aead_decrypt(uint8_t *data_out, size_t len_data_out,
 
     if (decrypt_bool == CRYPTO_TRUE)
     {
+#if CRYPTO_HAVE_LIBGCRYPT_GCM_SIV
         if (mode == GCRY_CIPHER_MODE_GCM_SIV || mode == GCRY_CIPHER_MODE_SIV)
         {
             gcry_cipher_set_decryption_tag(tmp_hd, mac, mac_size);
         }
+#endif
         gcry_error = gcry_cipher_decrypt(tmp_hd,
                                          data_out,     // plaintext output
                                          len_data_out, // length of data
@@ -1018,7 +1032,11 @@ int32_t cryptography_get_ecs_mode(int8_t algo_enum)
             mode = GCRY_CIPHER_MODE_GCM;
             break;
         case CRYPTO_CIPHER_AES256_GCM_SIV:
+#if CRYPTO_HAVE_LIBGCRYPT_GCM_SIV
             mode = GCRY_CIPHER_MODE_GCM_SIV;
+#else
+            mode = CRYPTO_LIB_ERR_UNSUPPORTED_ECS_MODE;
+#endif
             break;
         case CRYPTO_CIPHER_AES256_CBC:
             mode = GCRY_CIPHER_MODE_CBC;
