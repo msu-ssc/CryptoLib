@@ -10,6 +10,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Simple CLI wrapper around the crypto library. Supports:
+//   - Storing a symmetric key locally (--register-key).
+//   - Encrypting a TC frame or raw space packet payload (--encrypt).
+//   - Decrypting a TC frame and emitting the recovered PDU bytes (--decrypt).
+// Input is taken from stdin so it can be chained with other tools.
+
 #define DEFAULT_SPI 1
 #define DEFAULT_SCID 0x0003
 #define DEFAULT_VCID 0
@@ -53,6 +59,7 @@ static void print_usage(const char *prog)
 
 static int parse_hex(const char *hex, uint8_t *out, size_t *out_len)
 {
+    // Convert ASCII hex into bytes; reject odd-length strings or invalid digits.
     size_t hex_len = strlen(hex);
     if (hex_len % 2 != 0)
     {
@@ -74,6 +81,7 @@ static int parse_hex(const char *hex, uint8_t *out, size_t *out_len)
 
 static const char *get_default_store_path(char *buf, size_t buf_len)
 {
+    // Default to $HOME/.msu_crypto_key so subsequent invocations can reuse the key.
     const char *home = getenv("HOME");
     if (home != NULL)
     {
@@ -85,6 +93,7 @@ static const char *get_default_store_path(char *buf, size_t buf_len)
 
 static int save_key_hex(const char *path, const char *hex)
 {
+    // Persist the hex string as-is; the loader strips trailing newlines.
     FILE *f = fopen(path, "w");
     if (!f)
     {
@@ -101,6 +110,7 @@ static int save_key_hex(const char *path, const char *hex)
 
 static int load_key_hex(const char *path, char *hex_buf, size_t hex_buf_len)
 {
+    // Load a stored key; tolerate CR/LF endings so files work across platforms.
     FILE *f = fopen(path, "r");
     if (!f)
     {
@@ -122,6 +132,7 @@ static int load_key_hex(const char *path, char *hex_buf, size_t hex_buf_len)
 
 static int read_stdin(uint8_t **out, size_t *out_len)
 {
+    // Slurp stdin into a growable buffer; caller owns freeing the result.
     size_t      cap = 4096;
     size_t      len = 0;
     uint8_t    *buf = malloc(cap);
@@ -157,6 +168,7 @@ static int read_stdin(uint8_t **out, size_t *out_len)
 static int configure_and_init(uint16_t scid, uint8_t vcid, uint16_t spi, uint16_t key_id, const uint8_t *key,
                               size_t key_len)
 {
+    // One-time library configuration: internal key, SA, and cryptography providers with relaxed checks.
     int32_t status = Crypto_Config_CryptoLib(
         KEY_TYPE_INTERNAL, MC_TYPE_INTERNAL, SA_TYPE_INMEMORY, CRYPTOGRAPHY_TYPE_LIBGCRYPT, IV_INTERNAL,
         CRYPTO_TC_CREATE_FECF_TRUE, TC_PROCESS_SDLS_PDUS_FALSE, TC_HAS_PUS_HDR, TC_IGNORE_SA_STATE_TRUE,
@@ -168,6 +180,7 @@ static int configure_and_init(uint16_t scid, uint8_t vcid, uint16_t spi, uint16_
         return -1;
     }
 
+    // Register managed parameters for the single GVCID this tool uses.
     GvcidManagedParameters_t mp = {0};
     mp.tfvn                     = DEFAULT_TFVN;
     mp.scid                     = scid;
@@ -194,6 +207,7 @@ static int configure_and_init(uint16_t scid, uint8_t vcid, uint16_t spi, uint16_
         return -1;
     }
 
+    // Load the key into the in-memory key slot selected by key_id.
     KeyInterface key_if = get_key_interface_internal();
     crypto_key_t *k     = key_if->get_key(key_id);
     if (!k)
@@ -211,6 +225,7 @@ static int configure_and_init(uint16_t scid, uint8_t vcid, uint16_t spi, uint16_
     k->key_len   = (uint32_t)key_len;
     k->key_state = KEY_ACTIVE;
 
+    // Prepare and persist a security association bound to the given SPI.
     SaInterface            sa_if = get_sa_interface_inmemory();
     SecurityAssociation_t *sa_ptr;
     status = sa_if->sa_get_from_spi(spi, &sa_ptr);
@@ -262,6 +277,7 @@ static int handle_encrypt(const cli_opts_t *opts)
     const char *hex                    = opts->key_hex;
     if (!hex)
     {
+        // If the caller did not inline a key, fall back to the stored file.
         if (load_key_hex(opts->key_store_path, key_hex_buf, sizeof(key_hex_buf)) != 0)
         {
             fprintf(stderr, "Failed to load key from %s\n", opts->key_store_path);
@@ -278,6 +294,7 @@ static int handle_encrypt(const cli_opts_t *opts)
         return -1;
     }
 
+    // Consume stdin before any crypto setup, so errors can be reported early.
     uint8_t *input     = NULL;
     size_t   input_len = 0;
     if (read_stdin(&input, &input_len) != 0)
@@ -345,6 +362,7 @@ static int handle_encrypt(const cli_opts_t *opts)
         frame_buf_len = (uint16_t)total_len;
     }
 
+    // Encrypt using the configured SA; lib allocates the output buffer.
     uint8_t *out_buf      = NULL;
     uint16_t out_buf_size = 0;
     int32_t  status =
@@ -368,6 +386,7 @@ static int handle_decrypt(const cli_opts_t *opts)
     const char *hex                    = opts->key_hex;
     if (!hex)
     {
+        // Use saved key if none was provided inline.
         if (load_key_hex(opts->key_store_path, key_hex_buf, sizeof(key_hex_buf)) != 0)
         {
             fprintf(stderr, "Failed to load key from %s\n", opts->key_store_path);
@@ -405,6 +424,7 @@ static int handle_decrypt(const cli_opts_t *opts)
         return -1;
     }
 
+    // The crypto library fills tc_frame with pointers into its managed buffers.
     TC_t    tc_frame = (TC_t){0};
     int32_t status   = Crypto_TC_ProcessSecurity(input, &len_ingest, &tc_frame);
     free(input);
@@ -420,6 +440,7 @@ static int handle_decrypt(const cli_opts_t *opts)
 
 static int parse_args(int argc, char **argv, cli_opts_t *opts)
 {
+    // Defaults mirror the constants above; options mutate these in-place.
     opts->register_key   = 0;
     opts->encrypt        = 0;
     opts->decrypt        = 0;
@@ -490,6 +511,7 @@ static int parse_args(int argc, char **argv, cli_opts_t *opts)
         }
     }
 
+    // Only one mode is allowed; require callers to specify framing intent.
     if (opts->register_key + opts->encrypt + opts->decrypt != 1)
     {
         fprintf(stderr, "Specify exactly one of --register-key, --encrypt, or --decrypt\n");
@@ -526,6 +548,7 @@ int main(int argc, char **argv)
 
     if (opts.register_key)
     {
+        // Persist the key so later encrypt/decrypt calls can reuse it.
         if (!opts.key_hex)
         {
             fprintf(stderr, "Missing key hex for registration\n");
