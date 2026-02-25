@@ -1,8 +1,11 @@
 #!/bin/bash
 
 set -euo pipefail
+#cd /root/dev/CryptoLib
+# $0 is the location of this current bash file (mayo_test.sh) instead of inlining the absolute path
+DIR="$(cd "$(dirname "$0")" && pwd)"
 
-cd /root/dev/CryptoLib
+cd $DIR
 rm -rf frames
 
 mkdir -p frames
