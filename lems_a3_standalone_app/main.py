@@ -2,13 +2,12 @@ import socket
 
 #2077006200C000010000000000000000000000002077004E0018B3C00000310A00504C41494E2D544558542D41534349492D504152414D45544552000000000000504C41494E2D544558542D41534349492D56414C55450000000000000000000073F8
 
-
 def print_bytes(data: bytes) -> None:
     print(f" {data.hex(sep=' ')}")
     print("".join("  " + (chr(x) if (0x20 <= x <= 0x7e) else '.') for x in data))
     print(f"len of data: {len(data)}")
-def main():
 
+def main():
     send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
