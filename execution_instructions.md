@@ -54,3 +54,4 @@ This runs the docker container and exposes the approprate ports to our host mach
 ## Running Standalone
 
 Run `uv run ./main.py` within the `CryptoLib/lems_a3_standalone_app` directory, ensure CryptoLib is running prior to running `lems_a3_standalone_app/main.py` because it is dependant on the CryptoLib container to be active. 
+
