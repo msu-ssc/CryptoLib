@@ -1,0 +1,31 @@
+sent:
+ 18 b3 c0 00 00 31 0a 00 50 4c 41 49 4e 2d 54 45
+58 54 2d 41 53 43 49 49 2d 50 41 52 41 4d 45 54 4
+5 52 00 00 00 00 00 00 50 4c 41 49 4e 2d 54 45 58
+ 54 2d 41 53 43 49 49 2d 56 41 4c 55 45 00 00 00
+00 00 00 00 00 00 00
+  .  .  .  .  .  1  .  .  P  L  A  I  N  -  T  E
+ X  T  -  A  S  C  I  I  -  P  A  R  A  M  E  T
+E  R  .  .  .  .  .  .  P  L  A  I  N  -  T  E  X
+  T  -  A  S  C  I  I  -  V  A  L  U  E  .  .  .
+ .  .  .  .  .  .  .
+len of data: 72
+waiting to recieve
+recv:
+ 20 77 08 5b 02 c0 00 02 00 00 00 00 00 00 00 00
+00 00 00 01 7f 3f 6c ac 1a 7a fe 5d 2b 7b 60 06 a
+c da 1b a1 9e cf f8 7e 6a a1 a9 86 67 cf 84 d4 83
+ 2d ed da ff f2 a2 80 e8 36 42 68 03 4b d7 b7 84
+0a 30 ca dc 35 35 91 a8 19 72 b6 de 21 1a f9 75 0
+e f3 db ce b3 0e 9b 20 a8 b4 d1
+     w  .  [  .  .  .  .  .  .  .  .  .  .  .  .
+ .  .  .  .  .  ?  l  .  .  z  .  ]  +  {  `  .
+.  .  .  .  .  .  .  ~  j  .  .  .  g  .  .  .  .
+  -  .  .  .  .  .  .  .  6  B  h  .  K  .  .  .
+ .  0  .  .  5  5  .  .  .  r  .  .  !  .  .  u
+.  .  .  .  .  .  .     .  .  .
+len of data: 92
+data is same is outgoing message: False
+waiting to recieve
+
+

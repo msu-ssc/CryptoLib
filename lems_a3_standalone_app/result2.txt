@@ -1,0 +1,42 @@
+[alexandermeade@alexandermeade-standardpc lems_a3_standalone_app]$ uv run main.py
+sent:
+ 18 b3 c0 00 00 31 0a 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 50 41 52 41 4d 45 54 45 52 00 00 00 00 00 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 56 41 4c 55 45 00 00 00 00 00 00 00 00 00 00
+  .  .  .  .  .  1  .  .  P  L  A  I  N  -  T  E  X  T  -  A  S  C  I  I  -  P  A  R  A  M  E  T  E  R  .  .  .  .  .  .  P  L  A  I  N  -  T  E  X  T  -  A  S  C  I  I  -  V  A  L  U  E  .  .  .  .  .  .  .  .  .  .
+len of data: 72
+waiting to recieve
+recv:
+ 20 77 08 5b 01 c0 00 02 00 00 00 00 00 00 00 00 00 00 00 00 e9 0a c4 c4 ad 80 2a 5b 96 c0 bd 24 99 1a f1 f0 80 1c 09 43 ff f2 a3 67 be 24 58 fd 60 91 d2 57 5d 5c d2 6e a1 d7 fe c9 40 3e 71 9e af 9f b4 73 ff 36 09 f2 7e dd b8 68 91 9f 9d d1 3d 37 41 5c 07 ca 99 53 ed e5 f5 34
+     w  .  [  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  *  [  .  .  .  $  .  .  .  .  .  .  .  C  .  .  .  g  .  $  X  .  `  .  .  W  ]  \  .  n  .  .  .  .  @  >  q  .  .  .  .  s  .  6  .  .  ~  .  .  h  .  .  .  .  =  7  A  \  .  .  .  S  .  .  .  4
+len of data: 92
+data is same is outgoing message: False
+waiting to recieve
+^CTraceback (most recent call last):
+  File "/home/alexandermeade/Desktop/CryptoLib/lems_a3_standalone_app/main.py", line 33, in <module>
+    main()
+    ~~~~^^
+  File "/home/alexandermeade/Desktop/CryptoLib/lems_a3_standalone_app/main.py", line 28, in main
+    data, addr = recv_sock.recvfrom(4096)
+                 ~~~~~~~~~~~~~~~~~~^^^^^^
+KeyboardInterrupt
+[alexandermeade@alexandermeade-standardpc lems_a3_standalone_app]$ uv run main.py
+sent:
+ 18 b3 c0 00 00 31 0a 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 50 41 52 41 4d 45 54 45 52 00 00 00 00 00 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 56 41 4c 55 45 00 00 00 00 00 00 00 00 00 00
+  .  .  .  .  .  1  .  .  P  L  A  I  N  -  T  E  X  T  -  A  S  C  I  I  -  P  A  R  A  M  E  T  E  R  .  .  .  .  .  .  P  L  A  I  N  -  T  E  X  T  -  A  S  C  I  I  -  V  A  L  U  E  .  .  .  .  .  .  .  .  .  .
+len of data: 72
+waiting to recieve
+recv:
+ 20 77 0c 61 02 c0 00 03 00 00 18 b3 c0 00 00 31 0a 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 50 41 52 41 4d 45 54 45 52 00 00 00 00 00 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 56 41 4c 55 45 00 00 00 00 00 00 00 00 00 00 dc b6 b0 f8 62 e8 0e 15 3e e3 04 dc be 5b 23 6b
+     w  .  a  .  .  .  .  .  .  .  .  .  .  .  1  .  .  P  L  A  I  N  -  T  E  X  T  -  A  S  C  I  I  -  P  A  R  A  M  E  T  E  R  .  .  .  .  .  .  P  L  A  I  N  -  T  E  X  T  -  A  S  C  I  I  -  V  A  L  U  E  .  .  .  .  .  .  .  .  .  .  .  .  .  .  b  .  .  .  >  .  .  .  .  [  #  k
+len of data: 98
+data is same is outgoing message: False
+waiting to recieve
+^CTraceback (most recent call last):
+  File "/home/alexandermeade/Desktop/CryptoLib/lems_a3_standalone_app/main.py", line 33, in <module>
+    main()
+    ~~~~^^
+  File "/home/alexandermeade/Desktop/CryptoLib/lems_a3_standalone_app/main.py", line 28, in main
+    data, addr = recv_sock.recvfrom(4096)
+                 ~~~~~~~~~~~~~~~~~~^^^^^^
+KeyboardInterrupt
+[alexandermeade@alexandermeade-standardpc lems_a3_standalone_app]$
+
