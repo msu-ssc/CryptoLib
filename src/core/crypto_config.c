@@ -110,7 +110,7 @@ int32_t Crypto_SC_Init(void)
                       SA_INCREMENT_NONTRANSMITTED_IV_TRUE);
 
     // TC
-    TCGvcidManagedParameters_t TC_UT_Managed_Parameters = {0, 0x0003, 0, TC_NO_FECF, TC_HAS_SEGMENT_HDRS, 1024, 1};
+    TCGvcidManagedParameters_t TC_UT_Managed_Parameters = {0, SCID, 0, TC_NO_FECF, TC_HAS_SEGMENT_HDRS, 1024, 1};
     Crypto_Config_Add_TC_Gvcid_Managed_Parameters(TC_UT_Managed_Parameters);
     TC_UT_Managed_Parameters.vcid = 2;
     Crypto_Config_Add_TC_Gvcid_Managed_Parameters(TC_UT_Managed_Parameters);

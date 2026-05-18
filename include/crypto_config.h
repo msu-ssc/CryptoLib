@@ -51,7 +51,7 @@
 #define AOS_MAX_FRAME_SIZE 1786
 
 // Spacecraft Defines
-#define SCID 0x0003
+#define SCID 0x77
 
 // Functionality Defines
 #define INCREMENT
