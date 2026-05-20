@@ -49,6 +49,25 @@ docker run --rm -it \
 
 This runs the docker container and exposes the approprate ports to our host machine for use. 
 
+## Configuring standalone_config.txt
+
+the `standalone/standalone_config.txt` is formatted as field, value pairs with the syntax
+
+```
+Field=Value
+```
+
+The table below will show the expected data type for each field. 
+
+- Ports
+  - `TC_APPLY_PORT` - Sets the apply port, this expects a number of type `uint16_t`.
+  - `TC_APPLY_FWD_PORT`- Sets the apply forward port, this expects a number of type `uint16_t`.
+  - `TC_PROCESS_PORT` - Sets the process port, this expects a number of type `uint16_t`.
+  - `TC_PROCESS_FWD_PORT`- Sets the process forward port, this expects a number of type `uint16_t`.
+  - `INFO_QUERY_PORT` - Sets the port for info query, this expects a number of type `uint16_t`.
+  - `INFO_RESPONSE_PORT` - Sets the info response port, this expects a number of type `uint16_t`. 
+
+
 # Running lems_a3_standalone_app
 
 ## Running Standalone

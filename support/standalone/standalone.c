@@ -1237,6 +1237,7 @@ int main(int argc, char *argv[])
     close(tm_process.read.sockfd);
     close(tm_process.write.sockfd);
 
+
     Crypto_Shutdown();
 
     printf("\n");

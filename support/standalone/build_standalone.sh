@@ -1,0 +1,1 @@
+rm -rf ./build/support && mkdir -p ./build-support &&  docker run --rm -it   -v "$PWD:$PWD"   -w "$PWD/build/standalone"   ivvitc/cryptolib:dev   bash -lc 'cmake ../.. -DCODECOV=1 -DDEBUG=1 -DMC_INTERNAL=1 -DTEST=1 -DSA_FILE=1 -DCRYPTO_LIBGCRYPT=1 -DKEY_INTERNAL=1 -DSA_INTERNAL=1 -DSUPPORT=1 && make'
