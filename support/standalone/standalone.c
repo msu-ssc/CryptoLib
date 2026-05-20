@@ -924,10 +924,37 @@ typedef struct {
     uint16_t tc_process_fwd_port;
     uint16_t info_query_port;
     uint16_t info_response_port;
-    bool configured;
+    int configured;
 }StandaloneConfig_t;
 
-void read_config_file(const char *configPath, StandaloneConfig_t *config, uint32_t *cryptolib_status) {
+void StandaloneConfig_status(StandaloneConfig_t *config) {
+
+    if (!config->configured) {
+        printf(KRED "\nFailed to properly configure ports: " RESET);
+        if (!config->tc_apply_port)
+            printf(KRED "\n\tfailed to configure port: TC_APPLY_PORT" RESET);
+        if (!config->tc_apply_fwd_port)
+            printf(KRED "\n\tfailed to configure port: TC_APPLY_FWD_PORT" RESET);
+        if (!config->tc_process_port)
+            printf(KRED "\n\tfailed to configure port: TC_PROCESS_PORT" RESET);
+        if (!config->tc_process_fwd_port)
+            printf(KRED "\n\tfailed to configure port: TC_PROCESS_FWD_PORT" RESET);
+        if (!config->info_query_port)
+            printf(KRED "\n\tfailed to configure port: INFO_QUERY_PORT" RESET);
+        if (!config->info_response_port)
+            printf(KRED "\n\tfailed to configure port: INFO_RESPONSE_PORT" RESET);
+    }
+
+    printf("\nport config: ");
+    printf("\n\tTC_APPLY_PORT: %u", config->tc_apply_port);
+    printf("\n\tTC_APPLY_FWD_PORT: %u", config->tc_apply_fwd_port);
+    printf("\n\tTC_PROCESS_PORT: %u", config->tc_process_port);
+    printf("\n\tTC_PROCESS_FWD_PORT: %u", config->tc_process_fwd_port);
+    printf("\n\tINFO_QUERY_PORT: %u", config->info_query_port);
+    printf("\n\tINFO_RESPONSE_PORT: %u\n", config->info_response_port);
+}
+
+void read_config_file(const char *configPath, StandaloneConfig_t *config) {
     char *readBuffer = 0;
     long bufferLength = 0;
 
@@ -968,51 +995,55 @@ void read_config_file(const char *configPath, StandaloneConfig_t *config, uint32
     char *line = strtok(readBuffer, "\n");
 
     while (line) {
-        line = strtok(NULL, "\n");
-        if (!line)
-            break;
         char field[128]; 
         int value;
         int count = sscanf(line, "%[^=]=%d", field, &value);
 
-        printf("\nfield: %s, value: %d, count %d\n", line, field, value, count);
+        printf("\nfield: %s, value: %d, count %d\n", field, value, count);
 
-        if (strcmp(field, "TC_APPLY_PORT")) {
+        if (!strcmp(field, "TC_APPLY_PORT")) {
             config->tc_apply_port = (uint16_t) value;
+            line = strtok(NULL, "\n");
             continue;
         }
 
-        if (strcmp(field, "TC_APPLY_FWD_PORT")) {
+        if (!strcmp(field, "TC_APPLY_FWD_PORT")) {
             config->tc_apply_fwd_port = (uint16_t) value;
+            line = strtok(NULL, "\n");
             continue;
         }
         
-        if (strcmp(field, "TC_PROCESS_PORT")) {
+        if (!strcmp(field, "TC_PROCESS_PORT")) {
             config->tc_process_port = (uint16_t) value;
+            line = strtok(NULL, "\n");
             continue;
         }
         
-        if (strcmp(field, "TC_PROCESS_FWD_PORT")) {
+        if (!strcmp(field, "TC_PROCESS_FWD_PORT")) {
             config->tc_process_fwd_port = (uint16_t) value;
+            line = strtok(NULL, "\n");
             continue;
         }
 
-        if (strcmp(field, "INFO_QUERY_PORT")) {
+        if (!strcmp(field, "INFO_QUERY_PORT")) {
             config->info_query_port = (uint16_t) value;
+            line = strtok(NULL, "\n");
             continue;
         }
 
-        if (strcmp(field, "INFO_RESPONSE_PORT")) {
+        if (!strcmp(field, "INFO_RESPONSE_PORT")) {
             config->info_response_port = (uint16_t) value;
+            line = strtok(NULL, "\n");
             continue;
         }
     }
 
-    config->configured = (
-        config->tc_apply_port & config->tc_apply_fwd_port & 
-        config->tc_process_port & config->tc_process_fwd_port &
-        config->info_query_port & config->info_response_port
-    ) != 0;
+
+    // bitwise or flags to make that all the flags get set. 
+    // if the result is equal to zero then we know non of the flags were set.
+    config->configured = (config->tc_apply_port != 0) && (config->tc_apply_fwd_port != 0) &&
+                         (config->tc_process_port != 0) && (config->tc_process_fwd_port != 0) &&
+                         (config->info_query_port != 0) && (config->info_response_port != 0);
 
     //free the readBuffer after use
     free(readBuffer);
@@ -1058,13 +1089,10 @@ int main(int argc, char *argv[])
     sleep(10);
 
     StandaloneConfig_t standalone_config = {0};
-    read_config_file("/home/alexandermeade/Desktop/CryptoLib/support/standalone/standalone_config.txt", &standalone_config, &status);
+    read_config_file("/home/alexandermeade/Desktop/CryptoLib/support/standalone/standalone_config.txt", &standalone_config);
 
-    printf("config: ");
-    
-    if (standalone_config.tc_apply_port != 0) {
-        tc_apply.read.port = standalone_config.tc_apply_port;
-    }
+
+    StandaloneConfig_status(&standalone_config);
 
     /* Initialize CryptoLib */
     status = crypto_reset();
