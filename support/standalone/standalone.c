@@ -917,6 +917,107 @@ void crypto_standalone_cleanup(const int signal)
     return;
 }
 
+typedef struct {
+    uint16_t tc_apply_port;
+    uint16_t tc_apply_fwd_port;
+    uint16_t tc_process_port;
+    uint16_t tc_process_fwd_port;
+    uint16_t info_query_port;
+    uint16_t info_response_port;
+    bool configured;
+}StandaloneConfig_t;
+
+void read_config_file(const char *configPath, StandaloneConfig_t *config, uint32_t *cryptolib_status) {
+    char *readBuffer = 0;
+    long bufferLength = 0;
+
+    FILE *configFilePtr= fopen(configPath, "rb");
+
+    //Ensure file exists
+    if (configFilePtr) {
+
+        //sets the file pointer at end of the file
+        fseek(configFilePtr, 0, SEEK_END);
+
+        //gets position
+        bufferLength = ftell(configFilePtr);
+
+        //Sets the file pointer back at the start
+        fseek(configFilePtr, 0, SEEK_SET);
+
+        //Allocates the length of the file into the readBuffer
+        readBuffer = malloc(bufferLength);
+
+        if (readBuffer) {
+            //reads the contents  into the buffer
+            fread(readBuffer, 1, bufferLength, configFilePtr);
+        }
+        //prints read buffer
+        printf("%s", readBuffer);
+        //closes the file
+        fclose(configFilePtr);
+    }
+
+    if (!readBuffer) {
+        printf(KRED "Failed to config file" RESET);
+        return; 
+    }
+
+    //Split string by new lines
+    //Strtok does not allocate anything so no need to free.
+    char *line = strtok(readBuffer, "\n");
+
+    while (line) {
+        line = strtok(NULL, "\n");
+        if (!line)
+            break;
+        char field[128]; 
+        int value;
+        int count = sscanf(line, "%[^=]=%d", field, &value);
+
+        printf("\nfield: %s, value: %d, count %d\n", line, field, value, count);
+
+        if (strcmp(field, "TC_APPLY_PORT")) {
+            config->tc_apply_port = (uint16_t) value;
+            continue;
+        }
+
+        if (strcmp(field, "TC_APPLY_FWD_PORT")) {
+            config->tc_apply_fwd_port = (uint16_t) value;
+            continue;
+        }
+        
+        if (strcmp(field, "TC_PROCESS_PORT")) {
+            config->tc_process_port = (uint16_t) value;
+            continue;
+        }
+        
+        if (strcmp(field, "TC_PROCESS_FWD_PORT")) {
+            config->tc_process_fwd_port = (uint16_t) value;
+            continue;
+        }
+
+        if (strcmp(field, "INFO_QUERY_PORT")) {
+            config->info_query_port = (uint16_t) value;
+            continue;
+        }
+
+        if (strcmp(field, "INFO_RESPONSE_PORT")) {
+            config->info_response_port = (uint16_t) value;
+            continue;
+        }
+    }
+
+    config->configured = (
+        config->tc_apply_port & config->tc_apply_fwd_port & 
+        config->tc_process_port & config->tc_process_fwd_port &
+        config->info_query_port & config->info_response_port
+    ) != 0;
+
+    //free the readBuffer after use
+    free(readBuffer);
+}
+
 int main(int argc, char *argv[])
 {
     int32_t status = CRYPTO_LIB_SUCCESS;
@@ -956,6 +1057,15 @@ int main(int argc, char *argv[])
     /* Startup delay */
     sleep(10);
 
+    StandaloneConfig_t standalone_config = {0};
+    read_config_file("/home/alexandermeade/Desktop/CryptoLib/support/standalone/standalone_config.txt", &standalone_config, &status);
+
+    printf("config: ");
+    
+    if (standalone_config.tc_apply_port != 0) {
+        tc_apply.read.port = standalone_config.tc_apply_port;
+    }
+
     /* Initialize CryptoLib */
     status = crypto_reset();
     if (status != CRYPTO_LIB_SUCCESS)
@@ -967,7 +1077,7 @@ int main(int argc, char *argv[])
     /* Initialize sockets */
     if (keepRunning == CRYPTO_LIB_SUCCESS)
     {
-        status = crypto_standalone_socket_init(&tc_apply.read, TC_APPLY_PORT, 0, 0); // udp 6010
+        status = crypto_standalone_socket_init(&tc_apply.read, tc_apply.read.port, 0, 0); // udp 6010
         if (status != CRYPTO_LIB_SUCCESS)
         {
             printf("crypto_standalone_socket_init tc_apply.read failed with status %d \n", status);
@@ -975,7 +1085,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            status = crypto_standalone_socket_init(&tc_apply.write, TC_APPLY_FWD_PORT, 0,
+            status = crypto_standalone_socket_init(&tc_apply.write, tc_apply.write.port, 0,
                                                    crypto_use_tcp); // tcp, connect() 8010
             if (status != CRYPTO_LIB_SUCCESS)
             {
@@ -988,7 +1098,7 @@ int main(int argc, char *argv[])
     if (keepRunning == CRYPTO_LIB_SUCCESS)
     {
         status =
-            crypto_standalone_socket_init(&tm_process.read, TM_PROCESS_PORT, 1, crypto_use_tcp); // tcp, accept() 8011
+            crypto_standalone_socket_init(&tm_process.read, tm_process.read.port, 1, crypto_use_tcp); // tcp, accept() 8011
         if (status != CRYPTO_LIB_SUCCESS)
         {
             printf("crypto_standalone_socket_init tm_apply.read failed with status %d \n", status);
@@ -996,7 +1106,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            status = crypto_standalone_socket_init(&tm_process.write, TM_PROCESS_FWD_PORT, 0, 0); // udp 6011
+            status = crypto_standalone_socket_init(&tm_process.write, tm_process.write.port, 0, 0); // udp 6011
             if (status != CRYPTO_LIB_SUCCESS)
             {
                 printf("crypto_standalone_socket_init tm_process.write failed with status %d \n", status);

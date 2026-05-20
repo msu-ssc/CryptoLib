@@ -8,7 +8,7 @@ Note this is in draft form and is not yet traceable to the unit tests.
 * CryptoLib shall provide process security functions for each supported frame type.
 * CryptoLib shall provide teardown function(s) for the cleanup of the library.
 * CryptoLib shall maintain separation of modules for cryptography, key management, monitoring and control, and security associations that can be configured at build time for use.
-* CryptoLib shall maintain a custom option for each module type for users to develop specific implementations.
+* CryptoLib shall maintain a custom option for each module type for users to devvelop specific implementations.
 * CryptoLib shall adhere to the CCSDS Space Data Link Security standard (CCSDS 355.0-B-2) Protocl Implementation Conformance Statements (PICS).
 * CryptoLib shall adhere to the CCSDS Space Data Link Security Extended Procedures standard (CCSDS 355.1-B-1) Protocol Implementation Conformance Statements (PICS).
 
