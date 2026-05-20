@@ -1101,10 +1101,22 @@ int main(int argc, char *argv[])
     /* Startup delay */
     sleep(10);
 
+    //reads config from path
     StandaloneConfig_t standalone_config = {0};
     read_config_file("/home/alexandermeade/Desktop/CryptoLib/support/standalone/standalone_config.txt", &standalone_config);
 
+    //displays config status
     StandaloneConfig_status(&standalone_config);
+
+    //sets approprate values 
+    if (standalone_config.configured) {
+        tc_apply.read.port = standalone_config.tc_apply_port;
+        tc_apply.write.port = standalone_config.tc_apply_fwd_port;
+        tm_process.read.port = standalone_config.tc_process_port;
+        tm_process.write.port = standalone_config.tc_process_fwd_port;
+    } else {
+        printf(KRED "Standalone Config failed to configure! Resorting to default values for UDP ports and SCID" RESET);
+    }
 
     /* Initialize CryptoLib */
     status = crypto_reset();
