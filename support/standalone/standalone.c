@@ -924,7 +924,9 @@ typedef struct {
     uint16_t tc_process_fwd_port;
     uint16_t info_query_port;
     uint16_t info_response_port;
+    int scid;
     int configured;
+    int scid_set;
 }StandaloneConfig_t;
 
 void StandaloneConfig_status(StandaloneConfig_t *config) {
@@ -952,6 +954,13 @@ void StandaloneConfig_status(StandaloneConfig_t *config) {
     printf("\n\tTC_PROCESS_FWD_PORT: %u", config->tc_process_fwd_port);
     printf("\n\tINFO_QUERY_PORT: %u", config->info_query_port);
     printf("\n\tINFO_RESPONSE_PORT: %u\n", config->info_response_port);
+    printf("SCID config:");
+
+    if (config->scid_set) {
+        printf("\n\tSCID: %d", config->scid);
+    } else {
+        printf("\n\tSCID: UNSET FALLING TO DEFAULT: %d", SCID);
+    }
 }
 
 void read_config_file(const char *configPath, StandaloneConfig_t *config) {
@@ -979,14 +988,12 @@ void read_config_file(const char *configPath, StandaloneConfig_t *config) {
             //reads the contents  into the buffer
             fread(readBuffer, 1, bufferLength, configFilePtr);
         }
-        //prints read buffer
-        printf("%s", readBuffer);
         //closes the file
         fclose(configFilePtr);
     }
 
     if (!readBuffer) {
-        printf(KRED "Failed to config file" RESET);
+        printf(KRED "\n[ERROR]\tFailed to read config file: %s" RESET, configPath);
         return; 
     }
 
@@ -997,9 +1004,7 @@ void read_config_file(const char *configPath, StandaloneConfig_t *config) {
     while (line) {
         char field[128]; 
         int value;
-        int count = sscanf(line, "%[^=]=%d", field, &value);
-
-        printf("\nfield: %s, value: %d, count %d\n", field, value, count);
+        sscanf(line, "%[^=]=%d", field, &value);
 
         if (!strcmp(field, "TC_APPLY_PORT")) {
             config->tc_apply_port = (uint16_t) value;
@@ -1036,11 +1041,20 @@ void read_config_file(const char *configPath, StandaloneConfig_t *config) {
             line = strtok(NULL, "\n");
             continue;
         }
+        if (!strcmp(field, "INFO_RESPONSE_PORT")) {
+            config->info_response_port = (uint16_t) value;
+            line = strtok(NULL, "\n");
+            continue;
+        }
+        if (!strcmp(field, "SCID")) {
+            config->scid = (uint16_t) value;
+            line = strtok(NULL, "\n");
+            config->scid_set = 1;
+            continue;
+        }
     }
 
-
-    // bitwise or flags to make that all the flags get set. 
-    // if the result is equal to zero then we know non of the flags were set.
+    //ensures all ports are set and not 0.
     config->configured = (config->tc_apply_port != 0) && (config->tc_apply_fwd_port != 0) &&
                          (config->tc_process_port != 0) && (config->tc_process_fwd_port != 0) &&
                          (config->info_query_port != 0) && (config->info_response_port != 0);
@@ -1075,8 +1089,7 @@ int main(int argc, char *argv[])
     tm_process.write.port       = TM_PROCESS_FWD_PORT;
 
     printf("Starting CryptoLib in standalone mode! \n");
-    if (argc != 1)
-    {
+    if (argc != 1) {
         printf("Invalid number of arguments! \n");
         printf("  Expected zero but received: %s \n", argv[1]);
     }
@@ -1090,7 +1103,6 @@ int main(int argc, char *argv[])
 
     StandaloneConfig_t standalone_config = {0};
     read_config_file("/home/alexandermeade/Desktop/CryptoLib/support/standalone/standalone_config.txt", &standalone_config);
-
 
     StandaloneConfig_status(&standalone_config);
 
