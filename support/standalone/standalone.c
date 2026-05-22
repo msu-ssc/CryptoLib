@@ -588,7 +588,9 @@ void *crypto_standalone_tc_apply(void *socks)
 
             /* Reset */
             memset(tc_apply_in, 0x00, sizeof(tc_apply_in));
+            #ifdef CRYPTO_STANDALONE_HANDLE_FRAMING
             memset(tc_framed, 0x00, sizeof(tc_framed));
+            #endif
             tc_in_len  = 0;
             tc_out_len = 0;
             if (!tc_out_ptr)
