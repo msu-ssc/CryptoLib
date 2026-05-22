@@ -3,9 +3,8 @@ import json
 from  pathlib import Path
 from rich.pretty import  pprint
 from typing import Literal
-from dataclasses import dataclass
 
-@dataclass
+
 class CryptoResponse:
     input_tcframe: bytes
     vcid: int
@@ -57,38 +56,50 @@ def main():
     send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+
     data = Path("/home/alexandermeade/Desktop/CryptoLib/lems_a3_standalone_app/test_tc_frames.json")
+    tc_frames = json.loads(data.read_text(encoding="utf-8"))
 
 
     recv_sock.bind(("0.0.0.0", 8010))
     responses:[CryptoResponse] = [] 
 
-    # process_recv_sock.bind(("0.0.0.0", 8011))
-
-    tcframe = "20 77 00 4e 00 18 b3 c0 00 00 31 0a 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 50 41 52 41 4d 45 54 45 52 00 00 00 00 00 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 56 41 4c 55 45 00 00 00 00 00 00 00 00 00 00 73 f8"
-    outgoing_message = bytes.fromhex(tcframe)
-    vcid = input("Set vcid: ")
-    send_sock.sendto(outgoing_message, ("cryptolib", 6010))
     while True:
-        print("sent (TC_APPLY_PORT): ")
-
-        print_bytes(outgoing_message)
-
-        print("waiting to recieve (APPLY)")
-        # 2 second timeout
-        recv_sock.settimeout(2.0)
-        data = "TIMED_OUT"
+        print("----")
+        inp = input("Type 'q' to stop looping. Type a # to set set_vcid") 
+        if inp == 'q':
+            break
         
-        try: 
-            data, addr = recv_sock.recvfrom(4096)
-            print("recv (TC_APPLY_PORT): ")
-            print_bytes(data)
-            response = CryptoResponse(vcid=vcid, set_vcid=vcid, input_tcframe=tcframe, output_tcframe=data.hex())
-            pprint(response)
+        
+        #send_sock.sendto(outgoing_message, ("cryptolib", 6010))
 
-        except Exception as e: 
-            response = CryptoResponse(vcid=vcid, set_vcid=vcid,input_tcframe= tcframe, output_tcframe=str(e))
-            pprint(response)
+        for frame in tc_frames:
+            for i in range(0, 5):
+                pprint(frame)
+                outgoing_message = bytes.fromhex(frame["tc_frame"])
+
+                send_sock.sendto(outgoing_message, ("cryptolib", 6010))
+                print("sent (TC_APPLY_PORT): ")
+
+                print_bytes(outgoing_message)
+
+
+                #print("sent (TC_PROCESS_PORT): ")
+                #print_bytes(outgoing_message)
+
+                print("waiting to recieve (APPLY)")
+                recv_sock.settimeout(0.25)
+                data = "TIMED_OUT"
+                try: 
+                    data, addr = recv_sock.recvfrom(4096)
+                    print("recv (TC_APPLY_PORT): ")
+                    print_bytes(data)
+
+                    response = CryptoResponse(vcid=frame["vcid"], set_vcid=int(inp), input_tcframe=frame["tc_frame"], output_tcframe=data.hex())
+                    responses.append(response)
+                except Exception as e: 
+                    response = CryptoResponse(vcid=frame["vcid"], set_vcid=int(inp), input_tcframe=frame["tc_frame"], output_tcframe=str(e))
+                    responses.append(response)
 
     json_string = CryptoResponse.responses_to_json(responses)
 
