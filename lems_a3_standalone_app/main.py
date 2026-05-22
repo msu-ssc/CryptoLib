@@ -90,14 +90,5 @@ def main():
             response = CryptoResponse(vcid=vcid, set_vcid=vcid,input_tcframe= tcframe, output_tcframe=str(e))
             pprint(response)
 
-    json_string = CryptoResponse.responses_to_json(responses)
-
-    data_dict = json.loads(json_string)
-
-    pretty_json = json.dumps(data_dict, indent=4)
-
-
-    Path("/home/alexandermeade/Desktop/CryptoLib/lems_a3_standalone_app/responses.json").write_text(pretty_json, encoding="utf-8")
-
 if __name__ == "__main__":
     main()
