@@ -19,7 +19,7 @@ def main():
     recv_sock.bind(("0.0.0.0", 8010))
     # process_recv_sock.bind(("0.0.0.0", 8011))
 
-    tcframe = "20 77 00 4e 00 18 b3 c0 00 00 31 0a 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 50 41 52 41 4d 45 54 45 52 00 00 00 00 00 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 56 41 4c 55 45 00 00 00 00 00 00 00 00 00 00 73 f8"
+    tcframe = "20 77 0c 4e 00 18 b3 c0 00 00 31 0a 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 50 41 52 41 4d 45 54 45 52 00 00 00 00 00 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 56 41 4c 55 45 00 00 00 00 00 00 00 00 00 00 66 74"
     #tcframe = "18 b3 c0 00 00 31 0a 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 50 41 52 41 4d 45 54 45 52 00 00 00 00 00 00 50 4c 41 49 4e 2d 54 45 58 54 2d 41 53 43 49 49 2d 56 41 4c 55 45 00 00 00 00 00 00 00 00 00 00"
     outgoing_message = bytes.fromhex(tcframe)
 
@@ -28,8 +28,8 @@ def main():
     print("sent (TC_APPLY_PORT): ")
     print_bytes(outgoing_message)
 
-    print("sent (TC_PROCESS_PORT): ")
-    print_bytes(outgoing_message)
+    #print("sent (TC_PROCESS_PORT): ")
+    #print_bytes(outgoing_message)
 
     while True:
         print("waiting to recieve (APPLY)")
@@ -38,12 +38,12 @@ def main():
         print("recv (TC_APPLY_PORT): ")
         print_bytes(data)
 
-        print("waiting to recieve (PROCESS)")
-        process_send_sock.sendto(data, ("cryptolib", 6012))
-        process_data, addr2 = process_recv_sock.recvfrom(4096)
+        #print("waiting to recieve (PROCESS)")
+        #process_send_sock.sendto(data, ("cryptolib", 6012))
+        #process_data, addr2 = process_recv_sock.recvfrom(4096)
 
-        print("recv (TC_PROCESS_PORT): ")
-        print_bytes(process_data)
+        #print("recv (TC_PROCESS_PORT): ")
+        #print_bytes(process_data)
         # print(f"data is same is outgoing message: {data == outgoing_message}")
 
 
