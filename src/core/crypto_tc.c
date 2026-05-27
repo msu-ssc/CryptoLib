@@ -1065,6 +1065,9 @@ int32_t Crypto_TC_ApplySecurity_Cam(const uint8_t *p_in_frame, const uint16_t in
         return status;
     }
 
+    printf("temp_tc_header.fl + 1= %d", temp_tc_header.fl + 1);
+    printf("in_frame_length= %d", in_frame_length);
+
     if (temp_tc_header.fl + 1 != in_frame_length)
     {
         status = CRYPTO_LIB_ERR_TC_FRAME_LENGTH_MISMATCH;
@@ -1649,6 +1652,8 @@ int32_t Crypto_TC_Process_Sanity_Check(int *len_ingest)
         // Can't mc_log since it's not configured
         return status; // return immediately so a NULL crypto_config is not dereferenced later
     }
+
+    printf("len_ingest < 5 = %s", (*len_ingest < 5)? "true": "false");
     if ((*len_ingest < 5) &&
         (status == CRYPTO_LIB_SUCCESS)) // Frame length doesn't even have enough bytes for header -- error out.
     {
@@ -1968,7 +1973,10 @@ int32_t Crypto_TC_ProcessSecurity_Cam(uint8_t *ingest, int *len_ingest, TC_t *tc
     byte_idx++;
     tc_sdls_processed_frame->tc_header.fsn = (uint8_t)ingest[byte_idx];
     byte_idx++;
-
+    
+    printf("tc_sdls_processed_frame->tc_header.fl + 1= %d", tc_sdls_processed_frame->tc_header.fl +1);
+    printf("len_ingest= %d", *len_ingest);
+    
     if (tc_sdls_processed_frame->tc_header.fl + 1 != *len_ingest) // Specified frame length larger than provided frame!
     {
         status = CRYPTO_LIB_ERR_TC_FRAME_LENGTH_MISMATCH;

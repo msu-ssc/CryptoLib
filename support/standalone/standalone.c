@@ -1068,11 +1068,11 @@ void read_config_file(const char *configPath, StandaloneConfig_t *config) {
     free(readBuffer);
 }
 
-void *udp_port_listen(void *socks) {
+void *msu_tc_process(void *socks) {
     udp_interface_t *udp_interface = (udp_interface_t *)socks;
     int sockaddr_size = sizeof(struct sockaddr_in);
     struct sockaddr_in client_addr;  // Separate variable for recvfrom
-    char buffer[1024];
+    uint8_t buffer[4096];
     
     while (keepRunning == CRYPTO_LIB_SUCCESS) {
         sockaddr_size = sizeof(struct sockaddr_in);  // Reset size
@@ -1081,7 +1081,15 @@ void *udp_port_listen(void *socks) {
         if (status > 0) {
             printf("Received data on port %d: %.*s\n", udp_interface->read.port, status, buffer);
         }
+        int ingest_len = status;
+        TC_t unsecured_frame;
+        
+        printf("ingest len: %d", ingest_len);
+        Crypto_TC_ProcessSecurity(buffer, &ingest_len, &unsecured_frame);
+
+        printf("%s", (char*)unsecured_frame.tc_pdu);
     }
+
     close(udp_interface->read.sockfd);
     close(udp_interface->write.sockfd);
     return &udp_interface->read;
@@ -1239,14 +1247,13 @@ int main(int argc, char *argv[])
         printf("\n");
 
         status = pthread_create(&tc_apply_thread, NULL, *crypto_standalone_tc_apply, &tc_apply);
-        if (status < 0)
-        {
+        if (status < 0) {
             perror("Failed to create tc_apply_thread thread");
             keepRunning = CRYPTO_LIB_ERROR;
         }
         else
         {
-            status = pthread_create(&tc_process_thread, NULL, *udp_port_listen, &tc_process);
+            status = pthread_create(&tc_process_thread, NULL, *msu_tc_process, &tc_process);
             if (status<0) {
                 perror("Failed to create tc_process_thread thread");
                 keepRunning = CRYPTO_LIB_ERROR;

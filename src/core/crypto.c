@@ -290,15 +290,16 @@ int32_t Crypto_window(uint8_t *actual, uint8_t *expected, int length, int window
     if (actual == NULL)
     {
 #ifdef DEBUG
-        printf("Crypto_Window expected ptr is NULL\n");
+        printf("Crypto_Window expected ptr (actual) is NULL\n");
 #endif
+
         status      = CRYPTO_LIB_ERROR;
         return_code = 1;
     }
     if (expected == NULL)
     {
 #ifdef DEBUG
-        printf("Crypto_Window expected ptr is NULL\n");
+        printf("Crypto_Window expected ptr (expected) is NULL\n");
 #endif
         status      = CRYPTO_LIB_ERROR;
         return_code = 1;
@@ -310,6 +311,7 @@ int32_t Crypto_window(uint8_t *actual, uint8_t *expected, int length, int window
     {
         if (actual[i] != 0 || expected[i] != 0)
         {
+            printf("\nCrypto_Window: Zero case failed because actual != {0} or expected != {0}");
             zero_case = CRYPTO_FALSE;
         }
     }
@@ -318,8 +320,10 @@ int32_t Crypto_window(uint8_t *actual, uint8_t *expected, int length, int window
         status      = CRYPTO_LIB_SUCCESS;
         return_code = 1;
     }
+
     if (return_code != 1)
     {
+        printf("\nCrypto_Window: Return code was: %d instead of 1", return_code);
         memcpy(temp, expected, length);
         for (i = 0; i < window; i++)
         {
@@ -327,7 +331,7 @@ int32_t Crypto_window(uint8_t *actual, uint8_t *expected, int length, int window
             Crypto_increment(&temp[0], length);
 
 #ifdef DEBUG
-            printf("Checking Frame Against Incremented Window:\n");
+            printf("\nChecking Frame Against Incremented Window:\n");
             Crypto_hexprint(temp, length);
 #endif
 
@@ -340,7 +344,8 @@ int32_t Crypto_window(uint8_t *actual, uint8_t *expected, int length, int window
                     result++;
                 }
             }
-            if (result == length)
+            printf("\nresult matches length in fall back case for Zero_case: (result: %d == length: %d) = %d", result, length, result == length);
+            if (result == length-1)
             {
                 status = CRYPTO_LIB_SUCCESS;
                 break;
@@ -1351,8 +1356,10 @@ int32_t Crypto_Check_Anti_Replay_GCM(SecurityAssociation_t *sa_ptr, uint8_t *iv,
     if ((sa_ptr->iv_len > 0) && (sa_ptr->ecs == CRYPTO_CIPHER_AES256_GCM))
     {
         // Check IV Length
+        printf("\n check IV Length: sa_ptr->iv_len > IV_SIZE: %d", sa_ptr->iv_len > IV_SIZE);
         if (sa_ptr->iv_len > IV_SIZE)
         {
+            printf("\n\t IV LENGTH IS GREATER THAN MAX LENGTH");
             status = CRYPTO_LIB_ERR_IV_GREATER_THAN_MAX_LENGTH;
         }
         if (status == CRYPTO_LIB_SUCCESS)
@@ -1363,14 +1370,18 @@ int32_t Crypto_Check_Anti_Replay_GCM(SecurityAssociation_t *sa_ptr, uint8_t *iv,
             // Check IV is in ARSNW
             if (increment_nontransmitted == SA_INCREMENT_NONTRANSMITTED_IV_TRUE)
             {
+                
                 status = Crypto_window(iv, sa_ptr->iv, sa_ptr->iv_len, sa_ptr->arsnw);
             }
             else // SA_INCREMENT_NONTRANSMITTED_IV_FALSE
             {
                 // Whole IV gets checked in MAC validation previously, this only verifies transmitted portion is what we
                 // expect.
+
                 status = Crypto_window(iv, sa_ptr->iv + (sa_ptr->iv_len - sa_ptr->shivf_len), sa_ptr->shivf_len,
                                        sa_ptr->arsnw);
+
+                printf("\n\t SA_INCREMENT_NONTRANSMITTED_IV_FALSE: Crypto_window status == CRYPTO_LIB_SUCCESS = %d", status == CRYPTO_LIB_SUCCESS);
             }
 #ifdef DEBUG
             printf("Received IV is\n\t");
@@ -1386,8 +1397,7 @@ int32_t Crypto_Check_Anti_Replay_GCM(SecurityAssociation_t *sa_ptr, uint8_t *iv,
             printf("\nARSNW is: %d\n", sa_ptr->arsnw);
             printf("Crypto_Window return status is: %d\n", status);
 #endif
-            if (status != CRYPTO_LIB_SUCCESS)
-            {
+            if (status != CRYPTO_LIB_SUCCESS) {
                 return CRYPTO_LIB_ERR_IV_OUTSIDE_WINDOW;
             }
             // Valid IV received, increment stored value
