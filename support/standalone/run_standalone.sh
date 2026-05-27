@@ -1,1 +1,1 @@
-docker run --rm -it   --hostname cryptolib   --add-host radio-sim:host-gateway   --add-host cosmos:host-gateway   -p 6010:6010/udp   -p 8011:8011/udp   -v "$PWD:$PWD"   -w "$PWD/build/standalone"   ivvitc/cryptolib:dev   ./support/standalone
+docker run --rm -it   --hostname cryptolib   --add-host radio-sim:host-gateway   --add-host cosmos:host-gateway   -p 6010:6010/udp   -p 8011:8011/udp  -p 6011:6011/udp  -v "$PWD:$PWD"   -w "$PWD/build/standalone"   ivvitc/cryptolib:dev   ./support/standalone
