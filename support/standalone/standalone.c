@@ -919,6 +919,7 @@ void crypto_standalone_cleanup(const int signal)
     return;
 }
 
+
 typedef struct {
     uint16_t tc_apply_port;
     uint16_t tc_apply_fwd_port;
@@ -1090,19 +1091,6 @@ int main(int argc, char *argv[])
     tm_process.write.ip_address = GSW_HOSTNAME;
     tm_process.write.port       = TM_PROCESS_FWD_PORT;
 
-    printf("Starting CryptoLib in standalone mode! \n");
-    if (argc != 1) {
-        printf("Invalid number of arguments! \n");
-        printf("  Expected zero but received: %s \n", argv[1]);
-    }
-    printf("CryptoLib using %s sockets\n", crypto_use_tcp ? "TCP" : "UDP");
-
-    /* Catch CTRL+C */
-    signal(SIGINT, crypto_standalone_cleanup);
-
-    /* Startup delay */
-    sleep(10);
-
     //reads config from path
     StandaloneConfig_t standalone_config = {0};
     read_config_file("/home/alexandermeade/Desktop/CryptoLib/support/standalone/standalone_config.txt", &standalone_config);
@@ -1120,6 +1108,20 @@ int main(int argc, char *argv[])
         printf(KRED "Standalone Config failed to configure! Resorting to default values for UDP ports and SCID" RESET);
     }
 
+    printf("Starting CryptoLib in standalone mode! \n");
+    if (argc != 1)
+    {
+        printf("Invalid number of arguments! \n");
+        printf("  Expected zero but received: %s \n", argv[1]);
+    }
+    printf("CryptoLib using %s sockets\n", crypto_use_tcp ? "TCP" : "UDP");
+
+    /* Catch CTRL+C */
+    signal(SIGINT, crypto_standalone_cleanup);
+
+    /* Startup delay */
+    sleep(10);
+
     /* Initialize CryptoLib */
     status = crypto_reset();
     if (status != CRYPTO_LIB_SUCCESS)
@@ -1131,7 +1133,7 @@ int main(int argc, char *argv[])
     /* Initialize sockets */
     if (keepRunning == CRYPTO_LIB_SUCCESS)
     {
-        status = crypto_standalone_socket_init(&tc_apply.read, tc_apply.read.port, 0, 0); // udp 6010
+        status = crypto_standalone_socket_init(&tc_apply.read, TC_APPLY_PORT, 0, 0); // udp 6010
         if (status != CRYPTO_LIB_SUCCESS)
         {
             printf("crypto_standalone_socket_init tc_apply.read failed with status %d \n", status);
@@ -1139,7 +1141,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            status = crypto_standalone_socket_init(&tc_apply.write, tc_apply.write.port, 0,
+            status = crypto_standalone_socket_init(&tc_apply.write, TC_APPLY_FWD_PORT, 0,
                                                    crypto_use_tcp); // tcp, connect() 8010
             if (status != CRYPTO_LIB_SUCCESS)
             {
@@ -1152,7 +1154,7 @@ int main(int argc, char *argv[])
     if (keepRunning == CRYPTO_LIB_SUCCESS)
     {
         status =
-            crypto_standalone_socket_init(&tm_process.read, tm_process.read.port, 1, crypto_use_tcp); // tcp, accept() 8011
+            crypto_standalone_socket_init(&tm_process.read, TM_PROCESS_PORT, 1, crypto_use_tcp); // tcp, accept() 8011
         if (status != CRYPTO_LIB_SUCCESS)
         {
             printf("crypto_standalone_socket_init tm_apply.read failed with status %d \n", status);
@@ -1160,7 +1162,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            status = crypto_standalone_socket_init(&tm_process.write, tm_process.write.port, 0, 0); // udp 6011
+            status = crypto_standalone_socket_init(&tm_process.write, TM_PROCESS_FWD_PORT, 0, 0); // udp 6011
             if (status != CRYPTO_LIB_SUCCESS)
             {
                 printf("crypto_standalone_socket_init tm_process.write failed with status %d \n", status);
@@ -1238,7 +1240,6 @@ int main(int argc, char *argv[])
     close(tc_apply.write.sockfd);
     close(tm_process.read.sockfd);
     close(tm_process.write.sockfd);
-
 
     Crypto_Shutdown();
 

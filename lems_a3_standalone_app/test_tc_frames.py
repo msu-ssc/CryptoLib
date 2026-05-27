@@ -57,7 +57,7 @@ def main():
     recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 
-    data = Path("/home/alexandermeade/Desktop/CryptoLib/lems_a3_standalone_app/test_tc_frames.json")
+    data = Path("/home/alexanderm/Dev/CryptoLib/lems_a3_standalone_app/test_tc_frames.json")
     tc_frames = json.loads(data.read_text(encoding="utf-8"))
 
 
@@ -108,7 +108,7 @@ def main():
     pretty_json = json.dumps(data_dict, indent=4)
 
 
-    Path("/home/alexandermeade/Desktop/CryptoLib/lems_a3_standalone_app/responses.json").write_text(pretty_json, encoding="utf-8")
+    Path("/home/alexanderm/Dev/CryptoLib/lems_a3_standalone_app/responses.json").write_text(pretty_json, encoding="utf-8")
 
 if __name__ == "__main__":
     main()
