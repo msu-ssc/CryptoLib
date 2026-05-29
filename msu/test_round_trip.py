@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+
+"""Quick UDP round-trip test for the standalone CryptoLib processes."""
+
+from __future__ import annotations
+
+import socket
+import sys
+
+
+APPLY_IN = ("127.0.0.1", 6010)
+APPLY_OUT_PORT = 8010
+PROCESS_IN = ("127.0.0.1", 6012)
+PROCESS_OUT_PORT = 8012
+TIMEOUT_SECONDS = 3.0
+
+from pathlib import Path
+
+folder = Path(__file__).parent
+
+tc_frames_path = folder / "untracked/tc_frames.txt"
+
+TC_FRAMES_HEX = tc_frames_path.read_text().splitlines()
+
+
+def bind_udp(port: int) -> socket.socket:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("0.0.0.0", port))
+    sock.settimeout(TIMEOUT_SECONDS)
+    return sock
+
+
+def recv_packet(sock: socket.socket, label: str, frame_number: int) -> bytes:
+    try:
+        data, addr = sock.recvfrom(4096)
+    except socket.timeout:
+        raise RuntimeError(f"timed out waiting for {label} on frame {frame_number}") from None
+
+    print(f"  {label}: {len(data)} bytes from {addr[0]}:{addr[1]}")
+    return data
+
+
+def main() -> int:
+    frames = [bytes.fromhex(frame) for frame in TC_FRAMES_HEX]
+
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as tx_sock:
+        with bind_udp(APPLY_OUT_PORT) as apply_out, bind_udp(PROCESS_OUT_PORT) as process_out:
+            for index, original in enumerate(frames, start=1):
+                print(f"[{index:02d}/{len(frames)}] input {len(original)} bytes: {original.hex().upper()}")
+
+                tx_sock.sendto(original, APPLY_IN)
+                applied = recv_packet(apply_out, "apply out", index)
+
+                tx_sock.sendto(applied, PROCESS_IN)
+                processed = recv_packet(process_out, "process out", index)
+
+                if processed != original:
+                    print("  FAIL: final frame does not match original")
+                    print(f"    original : {original.hex().upper()}")
+                    print(f"    applied  : {applied.hex().upper()}")
+                    print(f"    processed: {processed.hex().upper()}")
+                    return 1
+
+                print("  OK")
+
+    print(f"Round-trip OK for {len(frames)} frames")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

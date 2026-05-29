@@ -23,6 +23,9 @@
 
 #include "standalone.h"
 
+#include <errno.h>
+#include <sys/stat.h>
+
 #ifndef TC_PROCESS_PORT
 #define TC_PROCESS_PORT 6012
 #endif
@@ -33,9 +36,27 @@
 #define CRYPTO_STANDALONE_PROCESS_SCID             119
 #define CRYPTO_STANDALONE_PROCESS_TC_HAS_FECF      TC_HAS_FECF
 #define CRYPTO_STANDALONE_PROCESS_TC_HAS_SEG_HDRS  TC_NO_SEGMENT_HDRS
+#define CRYPTO_STANDALONE_PROCESS_STATE_DIR        "standalone_process_state"
 
 static volatile uint8_t keepRunning = CRYPTO_LIB_SUCCESS;
 static volatile uint8_t tc_debug    = 1;
+
+static int32_t crypto_standalone_process_use_state_dir(void)
+{
+    if (mkdir(CRYPTO_STANDALONE_PROCESS_STATE_DIR, 0775) != 0 && errno != EEXIST)
+    {
+        perror("mkdir");
+        return CRYPTO_LIB_ERROR;
+    }
+
+    if (chdir(CRYPTO_STANDALONE_PROCESS_STATE_DIR) != 0)
+    {
+        perror("chdir");
+        return CRYPTO_LIB_ERROR;
+    }
+
+    return CRYPTO_LIB_SUCCESS;
+}
 
 static uint8_t crypto_standalone_process_vcid_requires_security(uint8_t vcid)
 {
@@ -181,6 +202,7 @@ static int32_t crypto_standalone_process_configure_tc(void)
         sa_ptr->gvcid_blk.scid  = CRYPTO_STANDALONE_PROCESS_SCID;
         sa_ptr->gvcid_blk.vcid  = 2;
         sa_ptr->gvcid_blk.mapid = TYPE_TC;
+        sa_ptr->arsn_len        = 0;
     }
 
     return status;
@@ -289,10 +311,19 @@ int main(int argc, char *argv[])
 
     signal(SIGINT, crypto_standalone_process_cleanup);
 
-    status = crypto_standalone_process_reset();
+    status = crypto_standalone_process_use_state_dir();
     if (status != CRYPTO_LIB_SUCCESS)
     {
         keepRunning = CRYPTO_LIB_ERROR;
+    }
+
+    if (keepRunning == CRYPTO_LIB_SUCCESS)
+    {
+        status = crypto_standalone_process_reset();
+        if (status != CRYPTO_LIB_SUCCESS)
+        {
+            keepRunning = CRYPTO_LIB_ERROR;
+        }
     }
 
     if (keepRunning == CRYPTO_LIB_SUCCESS)
