@@ -26,3 +26,11 @@ target_compile_definitions(standalone PUBLIC
     $<$<NOT:$<BOOL:${STANDALONE_TCP}>>:STANDALONE_TCP=0>
 )
 target_link_libraries(standalone crypto pthread)
+
+add_executable(standalone_process
+               ./standalone/standalone_process.c)
+target_compile_definitions(standalone_process PUBLIC
+    $<$<BOOL:${STANDALONE_TCP}>:STANDALONE_TCP=1>
+    $<$<NOT:$<BOOL:${STANDALONE_TCP}>>:STANDALONE_TCP=0>
+)
+target_link_libraries(standalone_process crypto pthread)

@@ -34,7 +34,10 @@ static volatile uint8_t tc_vcid        = CRYPTO_STANDALONE_FRAMING_VCID;
 static volatile uint8_t tc_debug       = 1;
 static volatile uint8_t tm_debug       = 0;
 static volatile uint8_t crypto_use_tcp = STANDALONE_TCP ? 1 : 0;
-static pthread_mutex_t  crypto_mutex   = PTHREAD_MUTEX_INITIALIZER;
+
+#define CRYPTO_STANDALONE_TC_SCID             119
+#define CRYPTO_STANDALONE_TC_HAS_FECF         TC_HAS_FECF
+#define CRYPTO_STANDALONE_TC_HAS_SEGMENT_HDRS TC_NO_SEGMENT_HDRS
 
 static uint8_t crypto_standalone_vcid_requires_security(uint8_t vcid)
 {
@@ -176,7 +179,7 @@ int32_t crypto_standalone_process_command(int32_t cc, int32_t num_tokens, char *
                     SecurityAssociation_t *test_association = NULL;
                     int32_t                status           = CRYPTO_LIB_SUCCESS;
 
-                    status = sa_if->sa_get_operational_sa_from_gvcid(0, CRYPTO_STANDALONE_FRAMING_SCID, vcid, TYPE_TC,
+                    status = sa_if->sa_get_operational_sa_from_gvcid(0, CRYPTO_STANDALONE_TC_SCID, vcid, TYPE_TC,
                                                                      &test_association);
                     if (status == CRYPTO_LIB_SUCCESS)
                     {
@@ -185,7 +188,7 @@ int32_t crypto_standalone_process_command(int32_t cc, int32_t num_tokens, char *
                     printf("Get_SA_Status: %d\n", status);
                     if ((status == CRYPTO_LIB_SUCCESS) && (test_association->sa_state == SA_OPERATIONAL) &&
                         (test_association->gvcid_blk.mapid == TYPE_TC) &&
-                        (test_association->gvcid_blk.scid == CRYPTO_STANDALONE_FRAMING_SCID))
+                        (test_association->gvcid_blk.scid == CRYPTO_STANDALONE_TC_SCID))
                     {
                         tc_vcid = vcid;
                         printf("Changed active virtual channel (VCID) to %d \n", tc_vcid);
@@ -426,8 +429,7 @@ int32_t crypto_standalone_socket_init(udp_info_t *sock, int32_t port, uint8_t bi
     else
     {
         // UDP: bind only if needed
-        if (bind_sock == 0 && sock->port != TM_PROCESS_FWD_PORT && sock->port != TC_APPLY_FWD_PORT &&
-            sock->port != TC_PROCESS_FWD_PORT)
+        if (bind_sock == 0 && sock->port != TM_PROCESS_FWD_PORT && sock->port != TC_APPLY_FWD_PORT)
         {
             status = bind(sock->sockfd, (struct sockaddr *)&sock->saddr, sizeof(sock->saddr));
             if (status != 0)
@@ -463,39 +465,14 @@ int32_t crypto_standalone_socket_init(udp_info_t *sock, int32_t port, uint8_t bi
     return status;
 }
 
-static int32_t crypto_standalone_send_data(udp_info_t *sock, uint8_t *data, uint16_t length, const char *context)
+static int32_t crypto_standalone_configure_tc(void)
 {
-    int32_t status;
-
-    if (crypto_use_tcp && sock->port == TC_APPLY_FWD_PORT)
-    {
-        status = send(sock->sockfd, data, length, 0);
-    }
-    else
-    {
-        status = sendto(sock->sockfd, data, length, 0, (struct sockaddr *)&sock->saddr, sizeof(sock->saddr));
-    }
-
-    if ((status == -1) || (status != length))
-    {
-        printf("%s - Reply error %d \n", context, status);
-        return CRYPTO_LIB_ERROR;
-    }
-
-    return CRYPTO_LIB_SUCCESS;
-}
-
-int32_t crypto_standalone_configure_tc(void)
-{
-    int32_t                status = CRYPTO_LIB_SUCCESS;
-    TCGvcidManagedParameters_t managed_parameters = {0,
-                                                     CRYPTO_STANDALONE_FRAMING_SCID,
-                                                     0,
-                                                     CRYPTO_STANDALONE_TC_HAS_FECF,
-                                                     CRYPTO_STANDALONE_TC_HAS_SEGMENT_HDRS,
-                                                     TC_MAX_FRAME_SIZE,
-                                                     1};
-    SecurityAssociation_t *sa_ptr = NULL;
+    int32_t                      status = CRYPTO_LIB_SUCCESS;
+    TCGvcidManagedParameters_t   managed_parameters = {0, CRYPTO_STANDALONE_TC_SCID, 0,
+                                                       CRYPTO_STANDALONE_TC_HAS_FECF,
+                                                       CRYPTO_STANDALONE_TC_HAS_SEGMENT_HDRS,
+                                                       TC_MAX_FRAME_SIZE, 1};
+    SecurityAssociation_t       *sa_ptr = NULL;
 
     memset(tc_gvcid_managed_parameters_array, 0, sizeof(tc_gvcid_managed_parameters_array));
     tc_gvcid_counter = 0;
@@ -519,23 +496,22 @@ int32_t crypto_standalone_configure_tc(void)
         return CRYPTO_LIB_ERROR;
     }
 
-    /* VCID 2 uses authenticated encryption, VCID 3 uses authentication only. */
     if (sa_if->sa_get_from_spi(2, &sa_ptr) == CRYPTO_LIB_SUCCESS)
     {
         sa_ptr->sa_state = SA_NONE;
     }
     if (sa_if->sa_get_from_spi(3, &sa_ptr) == CRYPTO_LIB_SUCCESS)
     {
-        sa_ptr->sa_state       = SA_OPERATIONAL;
-        sa_ptr->gvcid_blk.scid = CRYPTO_STANDALONE_FRAMING_SCID;
-        sa_ptr->gvcid_blk.vcid = 3;
+        sa_ptr->sa_state        = SA_OPERATIONAL;
+        sa_ptr->gvcid_blk.scid  = CRYPTO_STANDALONE_TC_SCID;
+        sa_ptr->gvcid_blk.vcid  = 3;
         sa_ptr->gvcid_blk.mapid = TYPE_TC;
     }
     if (sa_if->sa_get_from_spi(4, &sa_ptr) == CRYPTO_LIB_SUCCESS)
     {
-        sa_ptr->sa_state       = SA_OPERATIONAL;
-        sa_ptr->gvcid_blk.scid = CRYPTO_STANDALONE_FRAMING_SCID;
-        sa_ptr->gvcid_blk.vcid = 2;
+        sa_ptr->sa_state        = SA_OPERATIONAL;
+        sa_ptr->gvcid_blk.scid  = CRYPTO_STANDALONE_TC_SCID;
+        sa_ptr->gvcid_blk.vcid  = 2;
         sa_ptr->gvcid_blk.mapid = TYPE_TC;
     }
 
@@ -602,42 +578,6 @@ void crypto_standalone_tc_frame(uint8_t *in_data, uint16_t in_length, uint8_t *o
     /* SDLS Trailer */
 }
 
-void crypto_standalone_tc_frame_from_processed(TC_t *in_data, uint8_t *out_data, uint16_t *out_length)
-{
-    uint8_t  segment_hdr_len = tc_current_managed_parameters_struct.has_segmentation_hdr ? TC_SEGMENT_HDR_SIZE : 0;
-    uint8_t  fecf_len        = tc_current_managed_parameters_struct.has_fecf ? FECF_SIZE : 0;
-    uint16_t write_index     = TC_FRAME_HEADER_SIZE;
-    uint16_t frame_length;
-    uint16_t fecf;
-
-    frame_length = TC_FRAME_HEADER_SIZE + segment_hdr_len + in_data->tc_pdu_len + fecf_len;
-    *out_length  = frame_length;
-
-    out_data[0] = ((in_data->tc_header.tfvn << 6) & 0xC0) | ((in_data->tc_header.bypass << 5) & 0x20) |
-                  ((in_data->tc_header.cc << 4) & 0x10) | ((in_data->tc_header.spare << 2) & 0x0C) |
-                  ((in_data->tc_header.scid >> 8) & 0x03);
-    out_data[1] = in_data->tc_header.scid & 0xFF;
-    out_data[2] = ((in_data->tc_header.vcid << 2) & 0xFC) | (((frame_length - 1) >> 8) & 0x03);
-    out_data[3] = (frame_length - 1) & 0xFF;
-    out_data[4] = in_data->tc_header.fsn;
-
-    if (segment_hdr_len > 0)
-    {
-        out_data[write_index] = in_data->tc_sec_header.sh;
-        write_index++;
-    }
-
-    memcpy(out_data + write_index, in_data->tc_pdu, in_data->tc_pdu_len);
-    write_index += in_data->tc_pdu_len;
-
-    if (fecf_len > 0)
-    {
-        fecf                  = Crypto_Calc_FECF(out_data, write_index);
-        out_data[write_index] = (fecf >> 8) & 0xFF;
-        out_data[write_index + 1] = fecf & 0xFF;
-    }
-}
-
 void *crypto_standalone_tc_apply(void *socks)
 {
     int32_t          status        = CRYPTO_LIB_SUCCESS;
@@ -650,7 +590,7 @@ void *crypto_standalone_tc_apply(void *socks)
     uint8_t *tc_out_ptr = NULL;
     uint16_t tc_out_len = 0;
 
-#ifdef CRYPTO_STANDALONE_WRAP_SPACE_PACKETS
+#ifdef CRYPTO_STANDALONE_HANDLE_FRAMING
     uint8_t tc_framed[TC_MAX_FRAME_SIZE] = {0};
 #endif
 
@@ -705,18 +645,23 @@ void *crypto_standalone_tc_apply(void *socks)
 
             if (crypto_standalone_vcid_requires_security(tc_frame_vcid) == 0)
             {
-                status = crypto_standalone_send_data(tc_write_sock, tc_apply_in, tc_in_len,
-                                                     "crypto_standalone_tc_apply");
-                if (status == CRYPTO_LIB_SUCCESS && tc_debug == 1)
+                if (crypto_use_tcp)
                 {
-                    printf("crypto_standalone_tc_apply - forwarded unsecure VCID %d frame\n", tc_frame_vcid);
+                    status = send(tc_write_sock->sockfd, tc_apply_in, tc_in_len, 0);
+                }
+                else
+                {
+                    status = sendto(tc_write_sock->sockfd, tc_apply_in, tc_in_len, 0,
+                                    (struct sockaddr *)&tc_write_sock->saddr, sizeof(tc_write_sock->saddr));
+                }
+                if ((status == -1) || (status != tc_in_len))
+                {
+                    printf("crypto_standalone_tc_apply - Reply error %d \n", status);
                 }
                 continue;
             }
 
-            pthread_mutex_lock(&crypto_mutex);
             status = Crypto_TC_ApplySecurity(tc_apply_in, tc_in_len, &tc_out_ptr, &tc_out_len);
-            pthread_mutex_unlock(&crypto_mutex);
             if (status == CRYPTO_LIB_SUCCESS)
             {
                 if (tc_debug == 1)
@@ -728,8 +673,22 @@ void *crypto_standalone_tc_apply(void *socks)
                     }
                     printf("\n");
                 }
-                status = crypto_standalone_send_data(tc_write_sock, tc_out_ptr, tc_out_len,
-                                                     "crypto_standalone_tc_apply");
+                // printf("About to write to port %d!\n", tc_write_sock->port);
+                /* Reply */
+                if (crypto_use_tcp)
+                {
+                    status = send(tc_write_sock->sockfd, tc_out_ptr, tc_out_len, 0);
+                }
+                else
+                {
+                    status = sendto(tc_write_sock->sockfd, tc_out_ptr, tc_out_len, 0,
+                                    (struct sockaddr *)&tc_write_sock->saddr, sizeof(tc_write_sock->saddr));
+                }
+                if ((status == -1) || (status != tc_out_len))
+                {
+                    printf("crypto_standalone_tc_apply - Reply error %d \n", status);
+                }
+                // printf("Allegedly wrote %d bytes to port %d!\n", tc_out_len, tc_write_sock->port);
             }
             else
             {
@@ -738,9 +697,7 @@ void *crypto_standalone_tc_apply(void *socks)
 
             /* Reset */
             memset(tc_apply_in, 0x00, sizeof(tc_apply_in));
-#ifdef CRYPTO_STANDALONE_WRAP_SPACE_PACKETS
             memset(tc_framed, 0x00, sizeof(tc_framed));
-#endif
             tc_in_len  = 0;
             tc_out_len = 0;
             if (tc_out_ptr)
@@ -759,101 +716,6 @@ void *crypto_standalone_tc_apply(void *socks)
         /* Delay */
         usleep(100);
     }
-    close(tc_read_sock->sockfd);
-    close(tc_write_sock->sockfd);
-    return tc_read_sock;
-}
-
-void *crypto_standalone_tc_process(void *socks)
-{
-    int32_t          status         = CRYPTO_LIB_SUCCESS;
-    udp_interface_t *tc_socks       = (udp_interface_t *)socks;
-    udp_info_t      *tc_read_sock   = &tc_socks->read;
-    udp_info_t      *tc_write_sock  = &tc_socks->write;
-    uint8_t          tc_process_in[TC_MAX_FRAME_SIZE];
-    uint8_t          tc_process_out[TC_MAX_FRAME_SIZE];
-    int              tc_process_len = 0;
-    uint16_t         tc_out_len     = 0;
-    TC_t             tc_ptr;
-    int              sockaddr_size = sizeof(struct sockaddr_in);
-
-    memset(tc_process_in, 0x00, sizeof(tc_process_in));
-    memset(tc_process_out, 0x00, sizeof(tc_process_out));
-
-    while (keepRunning == CRYPTO_LIB_SUCCESS)
-    {
-        status = recvfrom(tc_read_sock->sockfd, tc_process_in, sizeof(tc_process_in), 0,
-                          (struct sockaddr *)&tc_read_sock->ip_address, (socklen_t *)&sockaddr_size);
-        if (status != -1)
-        {
-            uint8_t tc_frame_vcid = 0;
-
-            tc_process_len = status;
-            if (tc_debug == 1)
-            {
-                printf("crypto_standalone_tc_process - received[%d]: 0x", tc_process_len);
-                for (int i = 0; i < status; i++)
-                {
-                    printf("%02x", tc_process_in[i]);
-                }
-                printf("\n");
-            }
-
-            status = crypto_standalone_get_tc_vcid(tc_process_in, (uint16_t)tc_process_len, &tc_frame_vcid);
-            if (status != CRYPTO_LIB_SUCCESS)
-            {
-                printf("crypto_standalone_tc_process - dropping short TC frame\n");
-                continue;
-            }
-
-            if (crypto_standalone_vcid_requires_security(tc_frame_vcid) == 0)
-            {
-                status = crypto_standalone_send_data(tc_write_sock, tc_process_in, (uint16_t)tc_process_len,
-                                                     "crypto_standalone_tc_process");
-                if (status == CRYPTO_LIB_SUCCESS && tc_debug == 1)
-                {
-                    printf("crypto_standalone_tc_process - forwarded unsecure VCID %d frame\n", tc_frame_vcid);
-                }
-                continue;
-            }
-
-            memset(&tc_ptr, 0x00, sizeof(tc_ptr));
-            pthread_mutex_lock(&crypto_mutex);
-            status = Crypto_TC_ProcessSecurity(tc_process_in, &tc_process_len, &tc_ptr);
-            if (status == CRYPTO_LIB_SUCCESS)
-            {
-                crypto_standalone_tc_frame_from_processed(&tc_ptr, tc_process_out, &tc_out_len);
-            }
-            pthread_mutex_unlock(&crypto_mutex);
-
-            if (status == CRYPTO_LIB_SUCCESS)
-            {
-                if (tc_debug == 1)
-                {
-                    printf("crypto_standalone_tc_process - status = %d, decrypted[%d]: 0x", status, tc_out_len);
-                    for (int i = 0; i < tc_out_len; i++)
-                    {
-                        printf("%02x", tc_process_out[i]);
-                    }
-                    printf("\n");
-                }
-                status = crypto_standalone_send_data(tc_write_sock, tc_process_out, tc_out_len,
-                                                     "crypto_standalone_tc_process");
-            }
-            else
-            {
-                printf("crypto_standalone_tc_process - ProcessSecurity error %d \n", status);
-            }
-
-            memset(tc_process_in, 0x00, sizeof(tc_process_in));
-            memset(tc_process_out, 0x00, sizeof(tc_process_out));
-            tc_process_len = 0;
-            tc_out_len     = 0;
-        }
-
-        usleep(100);
-    }
-
     close(tc_read_sock->sockfd);
     close(tc_write_sock->sockfd);
     return tc_read_sock;
@@ -1178,21 +1040,15 @@ int main(int argc, char *argv[])
     char *token_ptr;
 
     udp_interface_t tc_apply;
-    udp_interface_t tc_process;
     udp_interface_t tm_process;
 
     pthread_t tc_apply_thread;
-    pthread_t tc_process_thread;
     pthread_t tm_process_thread;
 
     tc_apply.read.ip_address    = CRYPTOLIB_HOSTNAME;
     tc_apply.read.port          = TC_APPLY_PORT;
     tc_apply.write.ip_address   = SC_HOSTNAME;
     tc_apply.write.port         = TC_APPLY_FWD_PORT;
-    tc_process.read.ip_address  = CRYPTOLIB_HOSTNAME;
-    tc_process.read.port        = TC_PROCESS_PORT;
-    tc_process.write.ip_address = GSW_HOSTNAME;
-    tc_process.write.port       = TC_PROCESS_FWD_PORT;
     tm_process.read.ip_address  = CRYPTOLIB_HOSTNAME;
     tm_process.read.port        = TM_PROCESS_PORT;
     tm_process.write.ip_address = GSW_HOSTNAME;
@@ -1243,25 +1099,6 @@ int main(int argc, char *argv[])
 
     if (keepRunning == CRYPTO_LIB_SUCCESS)
     {
-        status = crypto_standalone_socket_init(&tc_process.read, TC_PROCESS_PORT, 0, 0); // udp 6012
-        if (status != CRYPTO_LIB_SUCCESS)
-        {
-            printf("crypto_standalone_socket_init tc_process.read failed with status %d \n", status);
-            keepRunning = CRYPTO_LIB_ERROR;
-        }
-        else
-        {
-            status = crypto_standalone_socket_init(&tc_process.write, TC_PROCESS_FWD_PORT, 0, 0); // udp 8012
-            if (status != CRYPTO_LIB_SUCCESS)
-            {
-                printf("crypto_standalone_socket_init tc_process.write failed with status %d \n", status);
-                keepRunning = CRYPTO_LIB_ERROR;
-            }
-        }
-    }
-
-    if (keepRunning == CRYPTO_LIB_SUCCESS)
-    {
         status =
             crypto_standalone_socket_init(&tm_process.read, TM_PROCESS_PORT, 1, crypto_use_tcp); // tcp, accept() 8011
         if (status != CRYPTO_LIB_SUCCESS)
@@ -1287,9 +1124,6 @@ int main(int argc, char *argv[])
         printf("    Read, UDP - %s : %d \n", tc_apply.read.ip_address, tc_apply.read.port);
         printf("    Write, %s - %s : %d \n", crypto_use_tcp ? "TCP" : "UDP", tc_apply.write.ip_address,
                tc_apply.write.port);
-        printf("  TC Process \n");
-        printf("    Read, UDP - %s : %d \n", tc_process.read.ip_address, tc_process.read.port);
-        printf("    Write, UDP - %s : %d \n", tc_process.write.ip_address, tc_process.write.port);
         printf("  TM Process \n");
         printf("    Read, %s - %s : %d \n", crypto_use_tcp ? "TCP" : "UDP", tm_process.read.ip_address,
                tm_process.read.port);
@@ -1304,20 +1138,11 @@ int main(int argc, char *argv[])
         }
         else
         {
-            status = pthread_create(&tc_process_thread, NULL, *crypto_standalone_tc_process, &tc_process);
+            status = pthread_create(&tm_process_thread, NULL, *crypto_standalone_tm_process, &tm_process);
             if (status < 0)
             {
-                perror("Failed to create tc_process_thread thread");
+                perror("Failed to create tm_process_thread thread");
                 keepRunning = CRYPTO_LIB_ERROR;
-            }
-            else
-            {
-                status = pthread_create(&tm_process_thread, NULL, *crypto_standalone_tm_process, &tm_process);
-                if (status < 0)
-                {
-                    perror("Failed to create tm_process_thread thread");
-                    keepRunning = CRYPTO_LIB_ERROR;
-                }
             }
         }
     }
@@ -1359,8 +1184,6 @@ int main(int argc, char *argv[])
     /* Cleanup */
     close(tc_apply.read.sockfd);
     close(tc_apply.write.sockfd);
-    close(tc_process.read.sockfd);
-    close(tc_process.write.sockfd);
     close(tm_process.read.sockfd);
     close(tm_process.write.sockfd);
 

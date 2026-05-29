@@ -62,19 +62,11 @@ extern "C"
 #ifndef CRYPTO_RX_GROUND_PORT
 #define TM_PROCESS_FWD_PORT 6011
 #endif
-#ifndef TC_PROCESS_PORT
-#define TC_PROCESS_PORT 6012
-#endif
-#ifndef TC_PROCESS_FWD_PORT
-#define TC_PROCESS_FWD_PORT 8012
-#endif
 
 #define CRYPTO_STANDALONE_HANDLE_FRAMING
-#define CRYPTO_STANDALONE_FRAMING_SCID        119
+#define CRYPTO_STANDALONE_FRAMING_SCID        3
 #define CRYPTO_STANDALONE_FRAMING_VCID        0x00
 #define CRYPTO_STANDALONE_FRAMING_TC_DATA_LEN 512
-#define CRYPTO_STANDALONE_TC_HAS_FECF         TC_HAS_FECF
-#define CRYPTO_STANDALONE_TC_HAS_SEGMENT_HDRS TC_NO_SEGMENT_HDRS
 
 /*
 ** Can be used to reduce ground system error messages
@@ -132,13 +124,10 @@ extern "C"
     int32_t crypto_host_to_ip(const char *hostname, char *ip);
     int32_t crypto_standalone_udp_init(udp_info_t *sock, int32_t port, uint8_t bind_sock);
     int32_t crypto_reset(void);
-    int32_t crypto_standalone_configure_tc(void);
     void    crypto_standalone_spp_telem_or_idle(int32_t *status, TM_t *tm_ptr, uint16_t *spp_len,
                                                 udp_interface_t *tm_socks, int *tm_process_len);
     void    crypto_standalone_tc_frame(uint8_t *in_data, uint16_t in_length, uint8_t *out_data, uint16_t *out_length);
-    void    crypto_standalone_tc_frame_from_processed(TC_t *in_data, uint8_t *out_data, uint16_t *out_length);
     void   *crypto_standalone_tc_apply(void *socks);
-    void   *crypto_standalone_tc_process(void *socks);
     void    crypto_standalone_tm_frame(TM_t *in_data, uint16_t in_length, uint8_t *out_data, uint16_t *out_length,
                                        uint16_t spi);
     void   *crypto_standalone_tm_process(void *socks);
