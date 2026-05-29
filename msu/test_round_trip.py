@@ -40,6 +40,13 @@ def recv_packet(sock: socket.socket, label: str, frame_number: int) -> bytes:
     print(f"  {label}: {len(data)} bytes from {addr[0]}:{addr[1]}")
     return data
 
+def print_bytes(data: bytes, message):
+    print("\n" + str(message))
+    print(data.hex(sep = ' ', bytes_per_sep=1))
+
+    for byte in data:
+        char = chr(byte) if (0x20 <= byte <= 0x8E) else "."
+        print(f" {char} ", flush=True, end="")
 
 def main() -> int:
     frames = [bytes.fromhex(frame) for frame in TC_FRAMES_HEX]
@@ -48,6 +55,8 @@ def main() -> int:
         with bind_udp(APPLY_OUT_PORT) as apply_out, bind_udp(PROCESS_OUT_PORT) as process_out:
             for index, original in enumerate(frames, start=1):
                 print(f"[{index:02d}/{len(frames)}] input {len(original)} bytes: {original.hex().upper()}")
+
+                vcid = (original[2] & 0xFC) >> 2
 
                 tx_sock.sendto(original, APPLY_IN)
                 applied = recv_packet(apply_out, "apply out", index)
@@ -64,8 +73,15 @@ def main() -> int:
 
                 print("  OK")
 
+                print_bytes(original, "original")
+                print_bytes(applied, "applied")
+                print_bytes(processed, "processed")
+                print(f"  {vcid=}")
+
+
     print(f"Round-trip OK for {len(frames)} frames")
     return 0
+
 
 
 if __name__ == "__main__":
