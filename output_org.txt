@@ -1,0 +1,16 @@
+[01/36] input 15 bytes: 2077000E001806C00000010000BB20
+  apply out: 15 bytes from 172.17.0.2:47880
+  process out: 15 bytes from 172.17.0.3:40560
+  OK
+
+original
+20 77 00 0e 00 18 06 c0 00 00 01 00 00 bb 20
+    w  .  .  .  .  .  .  .  .  .  .  .  .    
+applied
+20 77 00 0e 00 18 06 c0 00 00 01 00 00 bb 20
+    w  .  .  .  .  .  .  .  .  .  .  .  .    
+processed
+20 77 00 0e 00 18 06 c0 00 00 01 00 00 bb 20
+    w  .  .  .  .  .  .  .  .  .  .  .  .      vcid=0
+[02/36] input 15 bytes: 2077080E011806C00000010000F28D
+  apply out: 45 bytes from 172.17.0.2:47880

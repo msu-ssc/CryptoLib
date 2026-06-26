@@ -47,7 +47,23 @@ docker run --rm -it \
   ./support/standalone
 ```
 
+## Running Standalone_process
+
 This runs the docker container and exposes the approprate ports to our host machine for use. 
+
+```bash
+docker run --rm -it \
+  --hostname cryptolib \
+  --add-host radio-sim:host-gateway \
+  --add-host cosmos:host-gateway \
+  -p 6010:6010/udp \
+  -p 8011:8011/udp \
+  -v "$PWD:$PWD" \
+  -w "$PWD/build/standalone" \
+  ivvitc/cryptolib:dev \
+  ./support/standalone
+```
+
 
 ## Configuring standalone_config.txt
 

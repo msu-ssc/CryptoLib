@@ -166,6 +166,16 @@ static int32_t crypto_standalone_process_configure_tc(void)
     memset(tc_gvcid_managed_parameters_array, 0, sizeof(tc_gvcid_managed_parameters_array));
     tc_gvcid_counter = 0;
 
+    status = Crypto_Config_TC(CRYPTO_TC_CREATE_FECF_TRUE, TC_PROCESS_SDLS_PDUS_TRUE, TC_NO_PUS_HDR,
+                              TC_IGNORE_ANTI_REPLAY_TRUE, TC_IGNORE_SA_STATE_FALSE,
+                              TC_UNIQUE_SA_PER_MAP_ID_FALSE, TC_CHECK_FECF_TRUE, 0x3F,
+                              SA_INCREMENT_NONTRANSMITTED_IV_TRUE);
+    if (status != CRYPTO_LIB_SUCCESS)
+    {
+        return status;
+    }
+
+
     managed_parameters.vcid = 2;
     status                  = Crypto_Config_Add_TC_Gvcid_Managed_Parameters(managed_parameters);
     if (status != CRYPTO_LIB_SUCCESS)
@@ -358,6 +368,8 @@ int main(int argc, char *argv[])
 
     while (keepRunning == CRYPTO_LIB_SUCCESS)
     {
+
+        printf("\ncrypto_config_tc.ignore_anti_replay btw: %d", crypto_config_tc.ignore_anti_replay);
         struct sockaddr_in source_address;
         socklen_t          source_address_len = sizeof(source_address);
 

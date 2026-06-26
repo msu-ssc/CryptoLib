@@ -22,8 +22,6 @@ tc_frames_path = folder / "tc_frames.txt"
 
 TC_FRAMES_HEX = tc_frames_path.read_text().splitlines()
 
-failed_frames = []
-
 
 def bind_udp(port: int) -> socket.socket:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -52,51 +50,36 @@ def print_bytes(data: bytes, message):
 
 def main() -> int:
     frames = [bytes.fromhex(frame) for frame in TC_FRAMES_HEX]
-    passes = 0
-    fails = 0
+
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as tx_sock:
         with bind_udp(APPLY_OUT_PORT) as apply_out, bind_udp(PROCESS_OUT_PORT) as process_out:
             for index, original in enumerate(frames, start=1):
                 print(f"[{index:02d}/{len(frames)}] input {len(original)} bytes: {original.hex().upper()}")
 
                 vcid = (original[2] & 0xFC) >> 2
-                try:
-                    last_applied = b""
-                    for i in range(0, 10):
-                        tx_sock.sendto(original, APPLY_IN)
-                        applied = recv_packet(apply_out, "apply out", index)
-                        last_applied = applied
 
-                    tx_sock.sendto(last_applied, PROCESS_IN)
-                    processed = recv_packet(process_out, "process out", index)
-                    if processed != original:
-                        print("  FAIL: final frame does not match original")
-                        print(f"    original : {original.hex().upper()}")
-                        print(f"    applied  : {last_applied.hex().upper()}")
-                        print(f"    processed: {processed.hex().upper()}")
-                        fails += 1
+                tx_sock.sendto(original, APPLY_IN)
+                applied = recv_packet(apply_out, "apply out", index)
 
-                    print("  OK")
-                    passes += 1
+                tx_sock.sendto(applied, PROCESS_IN)
+                processed = recv_packet(process_out, "process out", index)
 
-                    print_bytes(original, "original")
-                    print_bytes(applied, "applied")
-                    print_bytes(processed, "processed")
+                if processed != original:
+                    print("  FAIL: final frame does not match original")
+                    print(f"    original : {original.hex().upper()}")
+                    print(f"    applied  : {applied.hex().upper()}")
+                    print(f"    processed: {processed.hex().upper()}")
+                    return 1
 
-                except Exception as e:
-                    print(f"{e}")
-                    fails += 1
-                    failed_frames.append((index, original, vcid, e))
+                print("  OK")
 
+                print_bytes(original, "original")
+                print_bytes(applied, "applied")
+                print_bytes(processed, "processed")
                 print(f"  {vcid=}")
 
 
     print(f"Round-trip OK for {len(frames)} frames")
-    print(f"passes: {passes}, fails: {fails}, % = {passes / (passes+fails)}")
-    for index, frame, vcid, err in failed_frames:
-        print(f"frame index: {index}")
-        print_bytes(frame, "\t frame: ")
-        print(f"\t\t vcid: {vcid}\n\t err: {err}")
     return 0
 
 
