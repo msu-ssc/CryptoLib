@@ -18,19 +18,19 @@
 find_package(Threads REQUIRED)
 
 # Standalone
-include_directories("./standalone")
-add_executable(standalone 
-               ./standalone/standalone.c)
-target_compile_definitions(standalone PUBLIC
+include_directories("../msu")
+add_executable(lemsa3_apply_security
+               ../msu/lemsa3_apply_security.c)
+target_compile_definitions(lemsa3_apply_security PUBLIC
     $<$<BOOL:${STANDALONE_TCP}>:STANDALONE_TCP=1>
     $<$<NOT:$<BOOL:${STANDALONE_TCP}>>:STANDALONE_TCP=0>
 )
-target_link_libraries(standalone crypto pthread)
+target_link_libraries(lemsa3_apply_security crypto pthread)
 
-add_executable(standalone_process
-               ./standalone/standalone_process.c)
-target_compile_definitions(standalone_process PUBLIC
+add_executable(lemsa3_process_security
+               ../msu/lemsa3_process_security.c)
+target_compile_definitions(lemsa3_process_security PUBLIC
     $<$<BOOL:${STANDALONE_TCP}>:STANDALONE_TCP=1>
     $<$<NOT:$<BOOL:${STANDALONE_TCP}>>:STANDALONE_TCP=0>
 )
-target_link_libraries(standalone_process crypto pthread)
+target_link_libraries(lemsa3_process_security crypto pthread)

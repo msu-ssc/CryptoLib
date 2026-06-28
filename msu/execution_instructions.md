@@ -28,7 +28,7 @@ docker run --rm -it \
   bash -lc 'cmake ../.. -DCODECOV=1 -DDEBUG=1 -DMC_INTERNAL=1 -DTEST=1 -DSA_FILE=1 -DCRYPTO_LIBGCRYPT=1 -DKEY_INTERNAL=1 -DSA_INTERNAL=1 -DSUPPORT=1 && make'
 ```
 
-## Running CryptoLib
+## Running lemsa3_apply_security
 
 set up in `/ect/hosts` the cryptolib radio-sim cosmos as being on ip `127.0.0.1`. It should look like this `127.0.0.1 cryptolib radio-sim cosmos` at the top of `/ect/hosts`.
 
@@ -44,10 +44,10 @@ docker run --rm -it \
   -v "$PWD:$PWD" \
   -w "$PWD/build/standalone" \
   ivvitc/cryptolib:dev \
-  ./support/standalone
+  ./support/lemsa3_apply_security
 ```
 
-## Running Standalone_process
+## Running lemsa3_process_security
 
 This runs the docker container and exposes the approprate ports to our host machine for use. 
 
@@ -61,7 +61,7 @@ docker run --rm -it \
   -v "$PWD:$PWD" \
   -w "$PWD/build/standalone" \
   ivvitc/cryptolib:dev \
-  ./support/standalone
+  ./support/lemsa3_process_security
 ```
 
 

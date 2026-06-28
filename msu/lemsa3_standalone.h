@@ -16,8 +16,8 @@
    jstar-development-team@mail.nasa.gov
 */
 
-#ifndef CRYPTOLIB_STANDALONE_H
-#define CRYPTOLIB_STANDALONE_H
+#ifndef LEMSA3_STANDALONE_H
+#define LEMSA3_STANDALONE_H
 
 #ifdef __cplusplus
 extern "C"
@@ -219,4 +219,4 @@ extern "C"
 } /* Close scope of 'extern "C"' declaration which encloses file. */
 #endif
 
-#endif // CRYPTOLIB_STANDALONE_H
+#endif // LEMSA3_STANDALONE_H

@@ -21,7 +21,7 @@
 ** UDP interface to remove TC frame security and return the unsecured TC frame.
 *******************************************************************************/
 
-#include "standalone.h"
+#include "lemsa3_standalone.h"
 
 #include <errno.h>
 #include <sys/stat.h>

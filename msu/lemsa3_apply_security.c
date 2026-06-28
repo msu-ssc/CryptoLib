@@ -21,7 +21,7 @@
 ** UDP interfaces to apply / process each frame type and return the result.
 *******************************************************************************/
 
-#include "standalone.h"
+#include "lemsa3_standalone.h"
 
 /*
 ** Global Variables
@@ -479,13 +479,13 @@ static int32_t crypto_standalone_configure_tc(void)
 
     managed_parameters.vcid = 2;
     status                  = Crypto_Config_Add_TC_Gvcid_Managed_Parameters(managed_parameters);
-    
+
 
     if (status != CRYPTO_LIB_SUCCESS)
     {
         return status;
     }
-    
+
     if (status != CRYPTO_LIB_SUCCESS)
     {
         return status;
@@ -646,7 +646,7 @@ void *crypto_standalone_tc_apply(void *socks)
             /* Process */
             uint8_t tc_frame_vcid = 0;
             status                = crypto_standalone_get_tc_vcid(tc_apply_in, tc_in_len, &tc_frame_vcid);
-            
+
             if (status != CRYPTO_LIB_SUCCESS)
             {
                 int32_t reply_status;
@@ -674,7 +674,7 @@ void *crypto_standalone_tc_apply(void *socks)
             }
 
             status = Crypto_TC_ApplySecurity(tc_apply_in, tc_in_len, &tc_out_ptr, &tc_out_len);
-            crypto_config_tc.ignore_anti_replay = TC_IGNORE_ANTI_REPLAY_TRUE;  
+            crypto_config_tc.ignore_anti_replay = TC_IGNORE_ANTI_REPLAY_TRUE;
             if (status == CRYPTO_LIB_SUCCESS)
             {
                 if (tc_debug == 1)
