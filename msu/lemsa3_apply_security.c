@@ -23,6 +23,9 @@
 
 #include "lemsa3_standalone.h"
 
+#include <errno.h>
+#include <sys/stat.h>
+
 /*
 ** Global Variables
 */
@@ -38,6 +41,24 @@ static volatile uint8_t crypto_use_tcp = STANDALONE_TCP ? 1 : 0;
 #define CRYPTO_STANDALONE_TC_SCID             119
 #define CRYPTO_STANDALONE_TC_HAS_FECF         TC_HAS_FECF
 #define CRYPTO_STANDALONE_TC_HAS_SEGMENT_HDRS TC_NO_SEGMENT_HDRS
+#define CRYPTO_STANDALONE_APPLY_STATE_DIR     "standalone_apply_state"
+
+static int32_t crypto_standalone_apply_use_state_dir(void)
+{
+    if (mkdir(CRYPTO_STANDALONE_APPLY_STATE_DIR, 0775) != 0 && errno != EEXIST)
+    {
+        perror("mkdir");
+        return CRYPTO_LIB_ERROR;
+    }
+
+    if (chdir(CRYPTO_STANDALONE_APPLY_STATE_DIR) != 0)
+    {
+        perror("chdir");
+        return CRYPTO_LIB_ERROR;
+    }
+
+    return CRYPTO_LIB_SUCCESS;
+}
 
 static uint8_t crypto_standalone_vcid_requires_security(uint8_t vcid)
 {
@@ -1080,15 +1101,24 @@ int main(int argc, char *argv[])
     /* Catch CTRL+C */
     signal(SIGINT, crypto_standalone_cleanup);
 
+    status = crypto_standalone_apply_use_state_dir();
+    if (status != CRYPTO_LIB_SUCCESS)
+    {
+        keepRunning = CRYPTO_LIB_ERROR;
+    }
+
     /* Startup delay */
     sleep(10);
 
     /* Initialize CryptoLib */
-    status = crypto_reset();
-    if (status != CRYPTO_LIB_SUCCESS)
+    if (keepRunning == CRYPTO_LIB_SUCCESS)
     {
-        printf("CryptoLib initialization failed with error %d \n", status);
-        keepRunning = CRYPTO_LIB_ERROR;
+        status = crypto_reset();
+        if (status != CRYPTO_LIB_SUCCESS)
+        {
+            printf("CryptoLib initialization failed with error %d \n", status);
+            keepRunning = CRYPTO_LIB_ERROR;
+        }
     }
 
     /* Initialize sockets */
