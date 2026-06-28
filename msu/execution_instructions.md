@@ -47,6 +47,17 @@ docker run --rm -it \
   ./support/lemsa3_apply_security
 ```
 
+## Runtime Paths
+
+These paths are relative to the CryptoLib root. Invoke both programs from `build/standalone`.
+
+| Tool | Executable | CWD at invocation | SA save file |
+| --- | --- | --- | --- |
+| Apply security | `build/standalone/support/lemsa3_apply_security` | `build/standalone` | `build/standalone/standalone_apply_state/sa_save_file.bin` |
+| Process security | `build/standalone/support/lemsa3_process_security` | `build/standalone` | `build/standalone/standalone_process_state/sa_save_file.bin` |
+
+The binary response envelope format is described in [`msu/envelope_spec.md`](envelope_spec.md).
+
 ## Running lemsa3_process_security
 
 This runs the docker container and exposes the approprate ports to our host machine for use. 
@@ -56,33 +67,12 @@ docker run --rm -it \
   --hostname cryptolib \
   --add-host radio-sim:host-gateway \
   --add-host cosmos:host-gateway \
-  -p 6010:6010/udp \
-  -p 8011:8011/udp \
+  -p 6012:6012/udp \
   -v "$PWD:$PWD" \
   -w "$PWD/build/standalone" \
   ivvitc/cryptolib:dev \
   ./support/lemsa3_process_security
 ```
-
-
-## Configuring standalone_config.txt
-
-the `standalone/standalone_config.txt` is formatted as field, value pairs with the syntax
-
-```
-Field=Value
-```
-
-The table below will show the expected data type for each field. 
-
-- Ports
-  - `TC_APPLY_PORT` - Sets the apply port, this expects a number of type `uint16_t`.
-  - `TC_APPLY_FWD_PORT`- Sets the apply forward port, this expects a number of type `uint16_t`.
-  - `TC_PROCESS_PORT` - Sets the process port, this expects a number of type `uint16_t`.
-  - `TC_PROCESS_FWD_PORT`- Sets the process forward port, this expects a number of type `uint16_t`.
-  - `INFO_QUERY_PORT` - Sets the port for info query, this expects a number of type `uint16_t`.
-  - `INFO_RESPONSE_PORT` - Sets the info response port, this expects a number of type `uint16_t`. 
-
 
 # Running lems_a3_standalone_app
 
