@@ -378,8 +378,10 @@ int main(int argc, char *argv[])
         if (status != -1)
         {
             uint8_t tc_frame_vcid = 0;
+            uint16_t input_len;
 
             tc_process_len = status;
+            input_len      = (uint16_t)tc_process_len;
             if (tc_debug == 1)
             {
                 printf("crypto_standalone_tc_process - received[%d]: 0x", tc_process_len);
@@ -393,17 +395,26 @@ int main(int argc, char *argv[])
             status = crypto_standalone_process_get_tc_vcid(tc_process_in, (uint16_t)tc_process_len, &tc_frame_vcid);
             if (status != CRYPTO_LIB_SUCCESS)
             {
+                int32_t reply_status;
                 printf("crypto_standalone_tc_process - dropping short TC frame\n");
+                reply_status = crypto_standalone_send_envelope(tc_process.write.sockfd, &tc_process.write.saddr,
+                                                               tc_process_in, input_len, NULL, 0, status, 0);
+                if (reply_status != CRYPTO_LIB_SUCCESS)
+                {
+                    printf("crypto_standalone_tc_process - Reply error %d \n", reply_status);
+                }
                 continue;
             }
 
             if (crypto_standalone_process_vcid_requires_security(tc_frame_vcid) == 0)
             {
-                status = sendto(tc_process.write.sockfd, tc_process_in, (uint16_t)tc_process_len, 0,
-                                (struct sockaddr *)&tc_process.write.saddr, sizeof(tc_process.write.saddr));
-                if ((status == -1) || (status != tc_process_len))
+                int32_t reply_status;
+                reply_status =
+                    crypto_standalone_send_envelope(tc_process.write.sockfd, &tc_process.write.saddr, tc_process_in,
+                                                    input_len, tc_process_in, input_len, CRYPTO_LIB_SUCCESS, 0);
+                if (reply_status != CRYPTO_LIB_SUCCESS)
                 {
-                    printf("crypto_standalone_tc_process - Reply error %d \n", status);
+                    printf("crypto_standalone_tc_process - Reply error %d \n", reply_status);
                 }
                 continue;
             }
@@ -426,16 +437,25 @@ int main(int argc, char *argv[])
                     }
                     printf("\n");
                 }
-                status = sendto(tc_process.write.sockfd, tc_process_out, tc_out_len, 0,
-                                (struct sockaddr *)&tc_process.write.saddr, sizeof(tc_process.write.saddr));
-                if ((status == -1) || (status != tc_out_len))
+                int32_t reply_status;
+                reply_status =
+                    crypto_standalone_send_envelope(tc_process.write.sockfd, &tc_process.write.saddr, tc_process_in,
+                                                    input_len, tc_process_out, tc_out_len, CRYPTO_LIB_SUCCESS, 0);
+                if (reply_status != CRYPTO_LIB_SUCCESS)
                 {
-                    printf("crypto_standalone_tc_process - Reply error %d \n", status);
+                    printf("crypto_standalone_tc_process - Reply error %d \n", reply_status);
                 }
             }
             else
             {
+                int32_t reply_status;
                 printf("crypto_standalone_tc_process - ProcessSecurity error %d \n", status);
+                reply_status = crypto_standalone_send_envelope(tc_process.write.sockfd, &tc_process.write.saddr,
+                                                               tc_process_in, input_len, NULL, 0, status, 0);
+                if (reply_status != CRYPTO_LIB_SUCCESS)
+                {
+                    printf("crypto_standalone_tc_process - Reply error %d \n", reply_status);
+                }
             }
 
             memset(tc_process_in, 0x00, sizeof(tc_process_in));

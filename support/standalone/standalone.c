@@ -649,24 +649,26 @@ void *crypto_standalone_tc_apply(void *socks)
             
             if (status != CRYPTO_LIB_SUCCESS)
             {
+                int32_t reply_status;
                 printf("crypto_standalone_tc_apply - dropping short TC frame\n");
+                reply_status = crypto_standalone_send_envelope(tc_write_sock->sockfd, &tc_write_sock->saddr, tc_apply_in,
+                                                               tc_in_len, NULL, 0, status, crypto_use_tcp);
+                if (reply_status != CRYPTO_LIB_SUCCESS)
+                {
+                    printf("crypto_standalone_tc_apply - Reply error %d \n", reply_status);
+                }
                 continue;
             }
 
             if (crypto_standalone_vcid_requires_security(tc_frame_vcid) == 0)
             {
-                if (crypto_use_tcp)
+                int32_t reply_status;
+                reply_status = crypto_standalone_send_envelope(tc_write_sock->sockfd, &tc_write_sock->saddr, tc_apply_in,
+                                                               tc_in_len, tc_apply_in, tc_in_len, CRYPTO_LIB_SUCCESS,
+                                                               crypto_use_tcp);
+                if (reply_status != CRYPTO_LIB_SUCCESS)
                 {
-                    status = send(tc_write_sock->sockfd, tc_apply_in, tc_in_len, 0);
-                }
-                else
-                {
-                    status = sendto(tc_write_sock->sockfd, tc_apply_in, tc_in_len, 0,
-                                    (struct sockaddr *)&tc_write_sock->saddr, sizeof(tc_write_sock->saddr));
-                }
-                if ((status == -1) || (status != tc_in_len))
-                {
-                    printf("crypto_standalone_tc_apply - Reply error %d \n", status);
+                    printf("crypto_standalone_tc_apply - Reply error %d \n", reply_status);
                 }
                 continue;
             }
@@ -686,24 +688,26 @@ void *crypto_standalone_tc_apply(void *socks)
                 }
                 // printf("About to write to port %d!\n", tc_write_sock->port);
                 /* Reply */
-                if (crypto_use_tcp)
+                int32_t reply_status;
+                reply_status = crypto_standalone_send_envelope(tc_write_sock->sockfd, &tc_write_sock->saddr, tc_apply_in,
+                                                               tc_in_len, tc_out_ptr, tc_out_len, CRYPTO_LIB_SUCCESS,
+                                                               crypto_use_tcp);
+                if (reply_status != CRYPTO_LIB_SUCCESS)
                 {
-                    status = send(tc_write_sock->sockfd, tc_out_ptr, tc_out_len, 0);
-                }
-                else
-                {
-                    status = sendto(tc_write_sock->sockfd, tc_out_ptr, tc_out_len, 0,
-                                    (struct sockaddr *)&tc_write_sock->saddr, sizeof(tc_write_sock->saddr));
-                }
-                if ((status == -1) || (status != tc_out_len))
-                {
-                    printf("crypto_standalone_tc_apply - Reply error %d \n", status);
+                    printf("crypto_standalone_tc_apply - Reply error %d \n", reply_status);
                 }
                 // printf("Allegedly wrote %d bytes to port %d!\n", tc_out_len, tc_write_sock->port);
             }
             else
             {
+                int32_t reply_status;
                 printf("crypto_standalone_tc_apply - ApplySecurity error %d \n", status);
+                reply_status = crypto_standalone_send_envelope(tc_write_sock->sockfd, &tc_write_sock->saddr, tc_apply_in,
+                                                               tc_in_len, NULL, 0, status, crypto_use_tcp);
+                if (reply_status != CRYPTO_LIB_SUCCESS)
+                {
+                    printf("crypto_standalone_tc_apply - Reply error %d \n", reply_status);
+                }
             }
 
             /* Reset */
