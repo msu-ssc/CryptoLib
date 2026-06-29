@@ -30,21 +30,20 @@ docker run --rm -it \
 
 ## Running lemsa3_apply_security
 
-set up in `/ect/hosts` the cryptolib radio-sim cosmos as being on ip `127.0.0.1`. It should look like this `127.0.0.1 cryptolib radio-sim cosmos` at the top of `/ect/hosts`.
+The standalone tools use `127.0.0.1` for all endpoints. When running in Docker, use host networking so loopback refers to the host network namespace.
 
 Within the Cryptolib root directory run 
 
 ```bash
 docker run --rm -it \
-  --hostname cryptolib \
-  --add-host radio-sim:host-gateway \
-  --add-host cosmos:host-gateway \
-  -p 6010:6010/udp \
+  --network host \
   -v "$PWD:$PWD" \
   -w "$PWD/build/standalone" \
   ivvitc/cryptolib:dev \
   ./support/lemsa3_apply_security
 ```
+
+For command-security JSON contexts, use the same Docker networking shape as an argv array: include `--network`, `host`, remove old `--hostname` and `--add-host` entries, and remove old `-p` port-publishing entries.
 
 ## Runtime Paths
 
@@ -63,15 +62,20 @@ This runs the docker container and exposes the approprate ports to our host mach
 
 ```bash
 docker run --rm -it \
-  --hostname cryptolib \
-  --add-host radio-sim:host-gateway \
-  --add-host cosmos:host-gateway \
-  -p 6012:6012/udp \
+  --network host \
   -v "$PWD:$PWD" \
   -w "$PWD/build/standalone" \
   ivvitc/cryptolib:dev \
   ./support/lemsa3_process_security
 ```
+
+`lemsa3_process_security` enforces TC anti-replay by default. To ignore TC anti-replay validation, pass:
+
+```bash
+./support/lemsa3_process_security --anti-replay=ignore
+```
+
+`--anti-replay=enforce` is also accepted explicitly and is equivalent to the default.
 
 # Running lems_a3_standalone_app
 

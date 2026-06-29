@@ -37,9 +37,47 @@
 #define CRYPTO_STANDALONE_PROCESS_TC_HAS_FECF      TC_HAS_FECF
 #define CRYPTO_STANDALONE_PROCESS_TC_HAS_SEG_HDRS  TC_NO_SEGMENT_HDRS
 #define CRYPTO_STANDALONE_PROCESS_STATE_DIR        "standalone_process_state"
+#define CRYPTO_STANDALONE_PROCESS_ANTI_REPLAY_IGNORE_ARG  "--anti-replay=ignore"
+#define CRYPTO_STANDALONE_PROCESS_ANTI_REPLAY_ENFORCE_ARG "--anti-replay=enforce"
 
 static volatile uint8_t keepRunning = CRYPTO_LIB_SUCCESS;
 static volatile uint8_t tc_debug    = 1;
+static uint8_t          tc_ignore_anti_replay = TC_IGNORE_ANTI_REPLAY_FALSE;
+static crypto_standalone_status_tracker_t tc_status = CRYPTO_STANDALONE_STATUS_TRACKER_INITIALIZER;
+
+static const char *crypto_standalone_process_anti_replay_mode(void)
+{
+    return tc_ignore_anti_replay == TC_IGNORE_ANTI_REPLAY_TRUE ? "ignore" : "enforce";
+}
+
+static void crypto_standalone_process_print_usage(const char *program_name)
+{
+    printf("Usage: %s [--anti-replay=ignore|enforce]\n", program_name);
+    printf("  Default: --anti-replay=enforce\n");
+}
+
+static int32_t crypto_standalone_process_parse_args(int argc, char *argv[])
+{
+    if (argc == 1)
+    {
+        return CRYPTO_LIB_SUCCESS;
+    }
+
+    if (argc == 2 && strcmp(argv[1], CRYPTO_STANDALONE_PROCESS_ANTI_REPLAY_IGNORE_ARG) == 0)
+    {
+        tc_ignore_anti_replay = TC_IGNORE_ANTI_REPLAY_TRUE;
+        return CRYPTO_LIB_SUCCESS;
+    }
+
+    if (argc == 2 && strcmp(argv[1], CRYPTO_STANDALONE_PROCESS_ANTI_REPLAY_ENFORCE_ARG) == 0)
+    {
+        tc_ignore_anti_replay = TC_IGNORE_ANTI_REPLAY_FALSE;
+        return CRYPTO_LIB_SUCCESS;
+    }
+
+    crypto_standalone_process_print_usage(argv[0]);
+    return CRYPTO_LIB_ERROR;
+}
 
 static int32_t crypto_standalone_process_use_state_dir(void)
 {
@@ -74,39 +112,6 @@ static int32_t crypto_standalone_process_get_tc_vcid(const uint8_t *frame, uint1
     return CRYPTO_LIB_SUCCESS;
 }
 
-static int32_t crypto_standalone_process_host_to_ip(const char *hostname, char *ip)
-{
-    struct addrinfo hints, *res, *p;
-    int             status;
-    void           *addr;
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family   = AF_INET;
-    hints.ai_socktype = SOCK_DGRAM;
-
-    if ((status = getaddrinfo(hostname, NULL, &hints, &res)) != 0)
-    {
-        return CRYPTO_LIB_ERROR;
-    }
-
-    for (p = res; p != NULL; p = p->ai_next)
-    {
-        struct sockaddr_in *ipv4 = (struct sockaddr_in *)p->ai_addr;
-        addr                     = &(ipv4->sin_addr);
-
-        if (inet_ntop(p->ai_family, addr, ip, INET_ADDRSTRLEN) == NULL)
-        {
-            freeaddrinfo(res);
-            return CRYPTO_LIB_ERROR;
-        }
-
-        freeaddrinfo(res);
-        return CRYPTO_LIB_SUCCESS;
-    }
-    freeaddrinfo(res);
-    return CRYPTO_LIB_ERROR;
-}
-
 static int32_t crypto_standalone_process_socket_init(udp_info_t *sock, int32_t port, uint8_t bind_sock)
 {
     int status = CRYPTO_LIB_SUCCESS;
@@ -119,26 +124,11 @@ static int32_t crypto_standalone_process_socket_init(udp_info_t *sock, int32_t p
         return CRYPTO_LIB_ERROR;
     }
 
-    sock->saddr.sin_family = AF_INET;
-    if (inet_addr(sock->ip_address) != INADDR_NONE)
+    status = crypto_standalone_set_ipv4_addr(sock);
+    if (status != CRYPTO_LIB_SUCCESS)
     {
-        sock->saddr.sin_addr.s_addr = inet_addr(sock->ip_address);
+        return status;
     }
-    else
-    {
-        char ip[16];
-        int  check = crypto_standalone_process_host_to_ip(sock->ip_address, ip);
-        if (check == CRYPTO_LIB_SUCCESS)
-        {
-            sock->saddr.sin_addr.s_addr = inet_addr(ip);
-        }
-        else
-        {
-            printf("udp_init: Failed to resolve hostname '%s'\n", sock->ip_address);
-            return CRYPTO_LIB_ERROR;
-        }
-    }
-    sock->saddr.sin_port = htons(sock->port);
 
     if (bind_sock)
     {
@@ -167,7 +157,7 @@ static int32_t crypto_standalone_process_configure_tc(void)
     tc_gvcid_counter = 0;
 
     status = Crypto_Config_TC(CRYPTO_TC_CREATE_FECF_TRUE, TC_PROCESS_SDLS_PDUS_TRUE, TC_NO_PUS_HDR,
-                              TC_IGNORE_ANTI_REPLAY_TRUE, TC_IGNORE_SA_STATE_FALSE,
+                              tc_ignore_anti_replay, TC_IGNORE_SA_STATE_FALSE,
                               TC_UNIQUE_SA_PER_MAP_ID_FALSE, TC_CHECK_FECF_TRUE, 0x3F,
                               SA_INCREMENT_NONTRANSMITTED_IV_TRUE);
     if (status != CRYPTO_LIB_SUCCESS)
@@ -306,18 +296,26 @@ int main(int argc, char *argv[])
     TC_t            tc_frame;
     int             tc_process_len = 0;
     uint16_t        tc_out_len     = 0;
+    pthread_t       status_thread;
+    crypto_standalone_status_reporter_args_t status_args;
 
     tc_process.read.ip_address  = CRYPTOLIB_HOSTNAME;
     tc_process.read.port        = TC_PROCESS_PORT;
     tc_process.write.ip_address = GSW_HOSTNAME;
     tc_process.write.port       = TC_PROCESS_FWD_PORT;
+    status_args.write_sock      = &tc_process.write;
+    status_args.tracker         = &tc_status;
+    status_args.attempt_label   = "process";
+    status_args.keep_running    = &keepRunning;
+    status_args.use_tcp         = 0;
 
     printf("Starting CryptoLib in standalone TC process mode! \n");
-    if (argc != 1)
+    status = crypto_standalone_process_parse_args(argc, argv);
+    if (status != CRYPTO_LIB_SUCCESS)
     {
-        printf("Invalid number of arguments! \n");
-        printf("  Expected zero but received: %s \n", argv[1]);
+        exit(EXIT_FAILURE);
     }
+    printf("TC anti-replay mode: %s\n", crypto_standalone_process_anti_replay_mode());
 
     signal(SIGINT, crypto_standalone_process_cleanup);
 
@@ -361,6 +359,16 @@ int main(int argc, char *argv[])
         printf("    Read, UDP - %s : %d \n", tc_process.read.ip_address, tc_process.read.port);
         printf("    Write, UDP - %s : %d \n", tc_process.write.ip_address, tc_process.write.port);
         printf("\n");
+
+        status = pthread_create(&status_thread, NULL, *crypto_standalone_status_reporter, &status_args);
+        if (status != 0)
+        {
+            printf("Failed to create status_thread thread: %d\n", status);
+        }
+        else
+        {
+            pthread_detach(status_thread);
+        }
     }
 
     memset(tc_process_in, 0x00, sizeof(tc_process_in));
@@ -409,6 +417,7 @@ int main(int argc, char *argv[])
             if (crypto_standalone_process_vcid_requires_security(tc_frame_vcid) == 0)
             {
                 int32_t reply_status;
+                crypto_standalone_note_attempt(&tc_status, tc_frame_vcid, CRYPTO_LIB_SUCCESS);
                 reply_status =
                     crypto_standalone_send_envelope(tc_process.write.sockfd, &tc_process.write.saddr, tc_process_in,
                                                     input_len, tc_process_in, input_len, CRYPTO_LIB_SUCCESS, 0);
@@ -425,6 +434,7 @@ int main(int argc, char *argv[])
             {
                 status = crypto_standalone_process_tc_frame(&tc_frame, tc_process_out, &tc_out_len);
             }
+            crypto_standalone_note_attempt(&tc_status, tc_frame_vcid, status);
 
             if (status == CRYPTO_LIB_SUCCESS)
             {

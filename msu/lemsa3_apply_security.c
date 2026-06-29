@@ -36,6 +36,7 @@ static volatile uint8_t tc_seq_num     = 0;
 static volatile uint8_t tc_vcid        = CRYPTO_STANDALONE_FRAMING_VCID;
 static volatile uint8_t tc_debug       = 1;
 static volatile uint8_t crypto_use_tcp = STANDALONE_TCP ? 1 : 0;
+static crypto_standalone_status_tracker_t tc_status = CRYPTO_STANDALONE_STATUS_TRACKER_INITIALIZER;
 
 #define CRYPTO_STANDALONE_TC_SCID             119
 #define CRYPTO_STANDALONE_TC_HAS_FECF         TC_HAS_FECF
@@ -75,40 +76,6 @@ static int32_t crypto_standalone_get_tc_vcid(const uint8_t *frame, uint16_t fram
     return CRYPTO_LIB_SUCCESS;
 }
 
-int32_t crypto_host_to_ip(const char *hostname, char *ip)
-{
-    struct addrinfo hints, *res, *p;
-    int             status;
-    void           *addr;
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family   = AF_INET; // Uses IPV4 only.  AF_UNSPEC for IPV6 Support
-    hints.ai_socktype = SOCK_STREAM;
-
-    if ((status = getaddrinfo(hostname, NULL, &hints, &res)) != 0)
-    {
-        return 1;
-    }
-
-    for (p = res; p != NULL; p = p->ai_next)
-    {
-        struct sockaddr_in *ipv4 = (struct sockaddr_in *)p->ai_addr;
-        addr                     = &(ipv4->sin_addr);
-
-        // Convert IP to String
-        if (inet_ntop(p->ai_family, addr, ip, INET_ADDRSTRLEN) == NULL)
-        {
-            freeaddrinfo(res);
-            return 1;
-        }
-
-        freeaddrinfo(res);
-        return 0; // IP Found
-    }
-    freeaddrinfo(res);
-    return 1; // IP NOT Found
-}
-
 int32_t crypto_standalone_socket_init(udp_info_t *sock, int32_t port, uint8_t bind_sock, int connection)
 {
     int       status = CRYPTO_LIB_SUCCESS;
@@ -128,27 +95,11 @@ int32_t crypto_standalone_socket_init(udp_info_t *sock, int32_t port, uint8_t bi
             return CRYPTO_LIB_ERROR;
         }
 
-        /* Determine IP */
-        sock->saddr.sin_family = AF_INET;
-        if (inet_addr(sock->ip_address) != INADDR_NONE)
+        status = crypto_standalone_set_ipv4_addr(sock);
+        if (status != CRYPTO_LIB_SUCCESS)
         {
-            sock->saddr.sin_addr.s_addr = inet_addr(sock->ip_address);
+            return status;
         }
-        else
-        {
-            char ip[16];
-            int  check = crypto_host_to_ip(sock->ip_address, ip);
-            if (check == 0)
-            {
-                sock->saddr.sin_addr.s_addr = inet_addr(ip);
-            }
-            else
-            {
-                printf("socket_init: Failed to resolve hostname '%s'\n", sock->ip_address);
-                return CRYPTO_LIB_ERROR;
-            }
-        }
-        sock->saddr.sin_port = htons(sock->port);
     }
     else
     {
@@ -157,24 +108,14 @@ int32_t crypto_standalone_socket_init(udp_info_t *sock, int32_t port, uint8_t bi
         if (sock->sockfd == -1)
         {
             printf("udp_init:  Socket create error port %d \n", sock->port);
+            return CRYPTO_LIB_ERROR;
         }
 
-        /* Determine IP */
-        sock->saddr.sin_family = AF_INET;
-        if (inet_addr(sock->ip_address) != INADDR_NONE)
+        status = crypto_standalone_set_ipv4_addr(sock);
+        if (status != CRYPTO_LIB_SUCCESS)
         {
-            sock->saddr.sin_addr.s_addr = inet_addr(sock->ip_address);
+            return status;
         }
-        else
-        {
-            char ip[16];
-            int  check = crypto_host_to_ip(sock->ip_address, ip);
-            if (check == 0)
-            {
-                sock->saddr.sin_addr.s_addr = inet_addr(ip);
-            }
-        }
-        sock->saddr.sin_port = htons(sock->port);
     }
 
     if (crypto_use_tcp && sock->port == TC_APPLY_FWD_PORT)
@@ -378,16 +319,17 @@ void *crypto_standalone_tc_apply(void *socks)
     uint8_t tc_framed[TC_MAX_FRAME_SIZE] = {0};
 #endif
 
-    int sockaddr_size = sizeof(struct sockaddr_in);
-
     /* Prepare */
     memset(tc_apply_in, 0x00, sizeof(tc_apply_in));
 
     while (keepRunning == CRYPTO_LIB_SUCCESS)
     {
+        struct sockaddr_in source_address;
+        socklen_t          source_address_len = sizeof(source_address);
+
         // /* Receive */
         status = recvfrom(tc_read_sock->sockfd, tc_apply_in, sizeof(tc_apply_in), 0,
-                          (struct sockaddr *)&tc_read_sock->ip_address, (socklen_t *)&sockaddr_size);
+                          (struct sockaddr *)&source_address, &source_address_len);
         if (status != -1)
         {
             tc_in_len = status;
@@ -438,6 +380,7 @@ void *crypto_standalone_tc_apply(void *socks)
             if (crypto_standalone_vcid_requires_security(tc_frame_vcid) == 0)
             {
                 int32_t reply_status;
+                crypto_standalone_note_attempt(&tc_status, tc_frame_vcid, CRYPTO_LIB_SUCCESS);
                 reply_status = crypto_standalone_send_envelope(tc_write_sock->sockfd, &tc_write_sock->saddr, tc_apply_in,
                                                                tc_in_len, tc_apply_in, tc_in_len, CRYPTO_LIB_SUCCESS,
                                                                crypto_use_tcp);
@@ -450,6 +393,7 @@ void *crypto_standalone_tc_apply(void *socks)
 
             status = Crypto_TC_ApplySecurity(tc_apply_in, tc_in_len, &tc_out_ptr, &tc_out_len);
             crypto_config_tc.ignore_anti_replay = TC_IGNORE_ANTI_REPLAY_TRUE;
+            crypto_standalone_note_attempt(&tc_status, tc_frame_vcid, status);
             if (status == CRYPTO_LIB_SUCCESS)
             {
                 if (tc_debug == 1)
@@ -531,6 +475,8 @@ int main(int argc, char *argv[])
     udp_interface_t tc_apply;
 
     pthread_t tc_apply_thread;
+    pthread_t status_thread;
+    crypto_standalone_status_reporter_args_t status_args;
 
     tc_apply.read.sockfd        = -1;
     tc_apply.read.ip_address    = CRYPTOLIB_HOSTNAME;
@@ -538,6 +484,11 @@ int main(int argc, char *argv[])
     tc_apply.write.sockfd       = -1;
     tc_apply.write.ip_address   = SC_HOSTNAME;
     tc_apply.write.port         = TC_APPLY_FWD_PORT;
+    status_args.write_sock      = &tc_apply.write;
+    status_args.tracker         = &tc_status;
+    status_args.attempt_label   = "apply";
+    status_args.keep_running    = &keepRunning;
+    status_args.use_tcp         = crypto_use_tcp;
 
     printf("Starting CryptoLib in LEMS-A3 TC apply security mode! \n");
     if (argc != 1)
@@ -596,6 +547,16 @@ int main(int argc, char *argv[])
         printf("    Write, %s - %s : %d \n", crypto_use_tcp ? "TCP" : "UDP", tc_apply.write.ip_address,
                tc_apply.write.port);
         printf("\n");
+
+        status = pthread_create(&status_thread, NULL, *crypto_standalone_status_reporter, &status_args);
+        if (status != 0)
+        {
+            printf("Failed to create status_thread thread: %d\n", status);
+        }
+        else
+        {
+            pthread_detach(status_thread);
+        }
 
         status = pthread_create(&tc_apply_thread, NULL, *crypto_standalone_tc_apply, &tc_apply);
         if (status != 0)
