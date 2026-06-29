@@ -846,18 +846,29 @@ extern "C"
         {
             char        counter_decimal[CRYPTO_STANDALONE_COUNTER_DECIMAL_MAX_LEN];
             char        counter_hex[CRYPTO_STANDALONE_COUNTER_HEX_MAX_LEN];
+            char        spi_text[8];
             const char *recent_attempt = vcid_status[i].attempts == 0 ? "never" : vcid_status[i].recent_attempt;
             const char *recent_result  = vcid_status[i].attempts == 0 ? "NONE" : vcid_status[i].recent_result;
             const char *separator      = i == 0 ? "" : ",";
+            uint16_t    spi            = 0;
             int         written;
 
+            if (crypto_standalone_vcid_to_spi(status_vcids[i], &spi) == CRYPTO_LIB_SUCCESS)
+            {
+                snprintf(spi_text, sizeof(spi_text), "%u", spi);
+            }
+            else
+            {
+                snprintf(spi_text, sizeof(spi_text), "null");
+            }
             crypto_standalone_get_antireplay_counter_text(status_vcids[i], counter_decimal, sizeof(counter_decimal),
                                                           counter_hex, sizeof(counter_hex));
 
             written = snprintf(&message[offset], message_len - (size_t)offset,
-                               "%s\"%u\":{\"attempts\":%llu,\"successes\":%llu,\"most_recent_timestamp\":\"%s\","
+                               "%s\"%u\":{\"spi\":%s,\"attempts\":%llu,\"successes\":%llu,"
+                               "\"most_recent_timestamp\":\"%s\","
                                "\"most_recent_result\":\"%s\",\"arsn\":%s,\"arsn_hex\":\"%s\"}",
-                               separator, status_vcids[i], (unsigned long long)vcid_status[i].attempts,
+                               separator, status_vcids[i], spi_text, (unsigned long long)vcid_status[i].attempts,
                                (unsigned long long)vcid_status[i].successes, recent_attempt, recent_result,
                                counter_decimal, counter_hex);
             if (written < 0 || (size_t)written >= message_len - (size_t)offset)

@@ -47,10 +47,10 @@ For success responses, `status` is `SUCCESS`, `crypto_status` is `0`, and `outpu
 The payload is plain text, with no required trailing NUL byte. Current producers send one UTF-8-compatible ASCII status line such as:
 
 ```text
-{"current_time":"2026-06-29T01:19:26.596+00:00","anti_replay_enforcement":true,"vcids":{"0":{"attempts":0,"successes":0,"most_recent_timestamp":"never","most_recent_result":"NONE","arsn":0,"arsn_hex":"0"},"2":{"attempts":42,"successes":39,"most_recent_timestamp":"2026-06-29T01:18:54.697+00:00","most_recent_result":"SUCCESS","arsn":1234,"arsn_hex":"4D2"},"3":{"attempts":0,"successes":0,"most_recent_timestamp":"never","most_recent_result":"NONE","arsn":0,"arsn_hex":"0"}}}
+{"current_time":"2026-06-29T01:19:26.596+00:00","anti_replay_enforcement":true,"vcids":{"0":{"spi":null,"attempts":0,"successes":0,"most_recent_timestamp":"never","most_recent_result":"NONE","arsn":0,"arsn_hex":"0"},"2":{"spi":4,"attempts":42,"successes":39,"most_recent_timestamp":"2026-06-29T01:18:54.697+00:00","most_recent_result":"SUCCESS","arsn":1234,"arsn_hex":"4D2"},"3":{"spi":3,"attempts":0,"successes":0,"most_recent_timestamp":"never","most_recent_result":"NONE","arsn":0,"arsn_hex":"0"}}}
 ```
 
-Current producers include the current TC anti-replay enforcement state and VCIDs `0`, `2`, and `3`. For these status messages, `arsn` means the effective anti-replay counter value selected from the SA: IV for AES-GCM/GCM-SIV SAs, ARSN for SAs with a transmitted sequence-number field, or `0` when no counter applies.
+Current producers include the current TC anti-replay enforcement state and VCIDs `0`, `2`, and `3`. For these status messages, `spi` is the security parameter index used for that VCID, or `null` when no security association maps to the VCID. `arsn` means the effective anti-replay counter value selected from the SA: IV for AES-GCM/GCM-SIV SAs, ARSN for SAs with a transmitted sequence-number field, or `0` when no counter applies.
 
 The fields at offsets 12 through 27 are zero-filled for status messages.
 
