@@ -385,15 +385,30 @@ int main(int argc, char *argv[])
                           (struct sockaddr *)&source_address, &source_address_len);
         if (status != -1)
         {
+            uint8_t control_request_handled = CRYPTO_FALSE;
             uint8_t tc_frame_vcid = 0;
             uint16_t input_len;
 
             tc_process_len = status;
             input_len      = (uint16_t)tc_process_len;
+            status = crypto_standalone_handle_counter_set_request(tc_process.write.sockfd, &tc_process.write.saddr,
+                                                                  tc_process_in, input_len, 0,
+                                                                  &control_request_handled);
+            if (control_request_handled == CRYPTO_TRUE)
+            {
+                if (status != CRYPTO_LIB_SUCCESS)
+                {
+                    printf("crypto_standalone_tc_process - Counter set reply error %d \n", status);
+                }
+                memset(tc_process_in, 0x00, sizeof(tc_process_in));
+                tc_process_len = 0;
+                continue;
+            }
+
             if (tc_debug == 1)
             {
                 printf("crypto_standalone_tc_process - received[%d]: 0x", tc_process_len);
-                for (int i = 0; i < status; i++)
+                for (int i = 0; i < tc_process_len; i++)
                 {
                     printf("%02x", tc_process_in[i]);
                 }

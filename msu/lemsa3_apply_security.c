@@ -332,11 +332,27 @@ void *crypto_standalone_tc_apply(void *socks)
                           (struct sockaddr *)&source_address, &source_address_len);
         if (status != -1)
         {
+            uint8_t control_request_handled = CRYPTO_FALSE;
+
             tc_in_len = status;
+            status = crypto_standalone_handle_counter_set_request(tc_write_sock->sockfd, &tc_write_sock->saddr,
+                                                                  tc_apply_in, tc_in_len, crypto_use_tcp,
+                                                                  &control_request_handled);
+            if (control_request_handled == CRYPTO_TRUE)
+            {
+                if (status != CRYPTO_LIB_SUCCESS)
+                {
+                    printf("crypto_standalone_tc_apply - Counter set reply error %d \n", status);
+                }
+                memset(tc_apply_in, 0x00, sizeof(tc_apply_in));
+                tc_in_len = 0;
+                continue;
+            }
+
             if (tc_debug == 1)
             {
                 printf("crypto_standalone_tc_apply - received[%d]: 0x", tc_in_len);
-                for (int i = 0; i < status; i++)
+                for (int i = 0; i < tc_in_len; i++)
                 {
                     printf("%02x", tc_apply_in[i]);
                 }

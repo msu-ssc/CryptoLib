@@ -13,12 +13,12 @@ All multi-byte integer fields are unsigned big-endian.
 | 0 | 4 | `magic` | ASCII `MSUC` (`0x4d 0x53 0x55 0x43`) |
 | 4 | 1 | `version` | `1` |
 | 5 | 1 | `header_len` | `28` |
-| 6 | 2 | `kind` | Envelope kind enum. `1` means security response. `2` means status message. |
+| 6 | 2 | `kind` | Envelope kind enum. `1` means security response. `2` means status message. `3` means anti-replay counter set request. |
 | 8 | 4 | `payload_len` | Number of bytes after the header |
-| 12 | 8 | `status` | For kind `1`: NUL-padded ASCII `SUCCESS` or `FAIL`. For kind `2`: zero-filled. |
-| 20 | 4 | `crypto_status` | For kind `1`: CryptoLib status as signed int32, encoded big-endian. For kind `2`: zero-filled. |
-| 24 | 2 | `input_len` | For kind `1`: number of input bytes included in the payload. For kind `2`: zero-filled. |
-| 26 | 2 | `output_len` | For kind `1`: number of output bytes included in the payload. For kind `2`: zero-filled. |
+| 12 | 8 | `status` | For kind `1`: NUL-padded ASCII `SUCCESS` or `FAIL`. For kinds `2` and `3`: zero-filled. |
+| 20 | 4 | `crypto_status` | For kind `1`: CryptoLib status as signed int32, encoded big-endian. For kinds `2` and `3`: zero-filled. |
+| 24 | 2 | `input_len` | For kind `1`: number of input bytes included in the payload. For kinds `2` and `3`: zero-filled. |
+| 26 | 2 | `output_len` | For kind `1`: number of output bytes included in the payload. For kinds `2` and `3`: zero-filled. |
 
 Defined `kind` values:
 
@@ -26,6 +26,7 @@ Defined `kind` values:
 | ---: | --- | --- |
 | 1 | Security response | TC apply/process security result with input bytes and optional output bytes |
 | 2 | Status message | Plain text standalone status/debug message |
+| 3 | Anti-replay counter set request | Binary request to update the effective anti-replay counter for a VCID |
 
 ## Kind 1: Security Response
 
@@ -51,6 +52,26 @@ The payload is plain text, with no required trailing NUL byte. Current producers
 Current producers include VCIDs `0`, `2`, and `3`. For these status messages, `arsn` means the effective anti-replay counter value selected from the SA: IV for AES-GCM/GCM-SIV SAs, ARSN for SAs with a transmitted sequence-number field, or `0` when no counter applies.
 
 The fields at offsets 12 through 27 are zero-filled for status messages.
+
+## Kind 3: Anti-Replay Counter Set Request
+
+The request payload is a compact binary structure:
+
+| Payload Offset | Size | Field | Description |
+| --- | ---: | --- | --- |
+| 0 | 1 | `vcid` | TC VCID whose effective anti-replay counter should be changed |
+| 1 | 1 | `counter_len` | Number of bytes in `counter` |
+| 2 | `counter_len` | `counter` | New counter value, unsigned big-endian |
+
+The current implementation accepts VCIDs `2` and `3`. VCID `2` updates SPI `4`'s IV; VCID `3` updates SPI `3`'s ARSN. `counter_len` must exactly match the selected effective counter length.
+
+The response to this request is a kind `2` status message. On success, its payload is a single line such as:
+
+```text
+{"current_time":"2026-06-29T01:19:26.596+00:00","anti_replay_counter_modification":{"vcid":2,"previous_counter_hex":"000000000000000000000123","new_counter_hex":"000000000000000000000001"}}
+```
+
+On failure, the same object includes an integer `error` field containing the CryptoLib/MSU status code.
 
 ## Future Versions
 

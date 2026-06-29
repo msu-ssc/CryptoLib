@@ -77,14 +77,18 @@ extern "C"
 #define CRYPTO_STANDALONE_ENVELOPE_STATUS_LEN 8
 #define CRYPTO_STANDALONE_ENVELOPE_KIND_SECURITY_RESPONSE 1
 #define CRYPTO_STANDALONE_ENVELOPE_KIND_STATUS_MESSAGE    2
+#define CRYPTO_STANDALONE_ENVELOPE_KIND_ANTI_REPLAY_COUNTER_SET_REQUEST 3
 #define CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN 28
 #define CRYPTO_STANDALONE_ENVELOPE_MAX_LEN    (CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN + (TC_MAX_FRAME_SIZE * 2))
 #define CRYPTO_STANDALONE_STATUS_TIMESTAMP_LEN 32
 #define CRYPTO_STANDALONE_STATUS_MESSAGE_MAX_LEN 2048
 #define CRYPTO_STANDALONE_STATUS_INTERVAL_SECONDS 10
 #define CRYPTO_STANDALONE_STATUS_VCID_COUNT 3
-#define CRYPTO_STANDALONE_COUNTER_DECIMAL_MAX_LEN 64
-#define CRYPTO_STANDALONE_COUNTER_HEX_MAX_LEN     ((ARSN_SIZE * 2) + 1)
+#define CRYPTO_STANDALONE_COUNTER_DECIMAL_MAX_LEN 80
+#define CRYPTO_STANDALONE_COUNTER_HEX_MAX_LEN     ((MAX_IV_LEN * 2) + 1)
+#define CRYPTO_STANDALONE_COUNTER_SET_REQUEST_MIN_LEN 2
+#define CRYPTO_STANDALONE_COUNTER_SET_REQUEST_MAX_COUNTER_LEN MAX_IV_LEN
+#define CRYPTO_STANDALONE_COUNTER_SET_RESPONSE_MAX_LEN 512
 
     /*
     ** Structures
@@ -128,6 +132,9 @@ extern "C"
 
 #define CRYPTO_STANDALONE_STATUS_TRACKER_INITIALIZER {PTHREAD_MUTEX_INITIALIZER, {{0}}}
 
+    static inline int32_t crypto_standalone_send_status_envelope(int sockfd, const struct sockaddr_in *addr,
+                                                                 const char *message, uint8_t use_tcp);
+
     static inline void crypto_standalone_write_u16(uint8_t *buf, uint16_t value)
     {
         buf[0] = (uint8_t)((value >> 8) & 0xFF);
@@ -140,6 +147,16 @@ extern "C"
         buf[1] = (uint8_t)((value >> 16) & 0xFF);
         buf[2] = (uint8_t)((value >> 8) & 0xFF);
         buf[3] = (uint8_t)(value & 0xFF);
+    }
+
+    static inline uint16_t crypto_standalone_read_u16(const uint8_t *buf)
+    {
+        return (uint16_t)(((uint16_t)buf[0] << 8) | (uint16_t)buf[1]);
+    }
+
+    static inline uint32_t crypto_standalone_read_u32(const uint8_t *buf)
+    {
+        return ((uint32_t)buf[0] << 24) | ((uint32_t)buf[1] << 16) | ((uint32_t)buf[2] << 8) | (uint32_t)buf[3];
     }
 
     static inline int32_t crypto_standalone_set_ipv4_addr(udp_info_t *sock)
@@ -295,9 +312,37 @@ extern "C"
         }
     }
 
-    static inline int32_t crypto_standalone_get_actual_antireplay_counter(SecurityAssociation_t *sa_ptr,
-                                                                          const uint8_t **counter,
-                                                                          uint8_t *counter_len)
+    static inline void crypto_standalone_counter_to_fixed_hex(const uint8_t *counter, uint8_t counter_len, char *buf,
+                                                              size_t buf_len)
+    {
+        size_t offset = 0;
+
+        if (buf_len == 0)
+        {
+            return;
+        }
+
+        if (counter == NULL || counter_len == 0)
+        {
+            snprintf(buf, buf_len, "0");
+            return;
+        }
+
+        for (uint8_t i = 0; i < counter_len && offset < buf_len; i++)
+        {
+            int written = snprintf(&buf[offset], buf_len - offset, "%02X", counter[i]);
+            if (written < 0 || (size_t)written >= buf_len - offset)
+            {
+                buf[buf_len - 1] = '\0';
+                return;
+            }
+            offset += (size_t)written;
+        }
+    }
+
+    static inline int32_t crypto_standalone_get_actual_antireplay_counter_mutable(SecurityAssociation_t *sa_ptr,
+                                                                                  uint8_t **counter,
+                                                                                  uint8_t *counter_len)
     {
         if (counter == NULL || counter_len == NULL)
         {
@@ -327,6 +372,27 @@ extern "C"
         }
 
         return CRYPTO_LIB_SUCCESS;
+    }
+
+    static inline int32_t crypto_standalone_get_actual_antireplay_counter(SecurityAssociation_t *sa_ptr,
+                                                                          const uint8_t **counter,
+                                                                          uint8_t *counter_len)
+    {
+        uint8_t *mutable_counter = NULL;
+        int32_t  status;
+
+        if (counter == NULL)
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+
+        status = crypto_standalone_get_actual_antireplay_counter_mutable(sa_ptr, &mutable_counter, counter_len);
+        if (status == CRYPTO_LIB_SUCCESS)
+        {
+            *counter = mutable_counter;
+        }
+
+        return status;
     }
 
     static inline int32_t crypto_standalone_vcid_to_spi(uint8_t vcid, uint16_t *spi)
@@ -382,6 +448,176 @@ extern "C"
 
         crypto_standalone_counter_to_decimal(counter, counter_len, decimal, decimal_len);
         crypto_standalone_counter_to_hex(counter, counter_len, hex, hex_len);
+    }
+
+    static inline int32_t crypto_standalone_set_antireplay_counter(uint8_t vcid, const uint8_t *new_counter,
+                                                                   uint8_t new_counter_len, char *previous_hex,
+                                                                   size_t previous_hex_len, char *new_hex,
+                                                                   size_t new_hex_len)
+    {
+        SecurityAssociation_t *sa_ptr = NULL;
+        uint8_t               *counter = NULL;
+        uint8_t                counter_len = 0;
+        uint16_t               spi = 0;
+        int32_t                status;
+
+        if (previous_hex_len > 0)
+        {
+            snprintf(previous_hex, previous_hex_len, "0");
+        }
+        if (new_hex_len > 0)
+        {
+            snprintf(new_hex, new_hex_len, "0");
+        }
+
+        if (new_counter == NULL || sa_if == NULL)
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+        status = crypto_standalone_vcid_to_spi(vcid, &spi);
+        if (status != CRYPTO_LIB_SUCCESS)
+        {
+            return status;
+        }
+        status = sa_if->sa_get_from_spi(spi, &sa_ptr);
+        if (status != CRYPTO_LIB_SUCCESS)
+        {
+            return status;
+        }
+        status = crypto_standalone_get_actual_antireplay_counter_mutable(sa_ptr, &counter, &counter_len);
+        if (status != CRYPTO_LIB_SUCCESS || counter == NULL || counter_len == 0)
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+        if (new_counter_len != counter_len)
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+
+        crypto_standalone_counter_to_fixed_hex(counter, counter_len, previous_hex, previous_hex_len);
+        crypto_standalone_counter_to_fixed_hex(new_counter, new_counter_len, new_hex, new_hex_len);
+        memcpy(counter, new_counter, counter_len);
+
+        return sa_if->sa_save_sa(sa_ptr);
+    }
+
+    static inline void crypto_standalone_format_counter_set_response(char *message, size_t message_len, uint8_t vcid,
+                                                                     const char *previous_hex, const char *new_hex,
+                                                                     int32_t status)
+    {
+        char now[CRYPTO_STANDALONE_STATUS_TIMESTAMP_LEN];
+
+        if (message_len == 0)
+        {
+            return;
+        }
+
+        crypto_standalone_current_time(now, sizeof(now));
+        if (status == CRYPTO_LIB_SUCCESS)
+        {
+            snprintf(message, message_len,
+                     "{\"current_time\":\"%s\",\"anti_replay_counter_modification\":{\"vcid\":%u,"
+                     "\"previous_counter_hex\":\"%s\",\"new_counter_hex\":\"%s\"}}",
+                     now, vcid, previous_hex == NULL ? "0" : previous_hex, new_hex == NULL ? "0" : new_hex);
+        }
+        else
+        {
+            snprintf(message, message_len,
+                     "{\"current_time\":\"%s\",\"anti_replay_counter_modification\":{\"vcid\":%u,"
+                     "\"previous_counter_hex\":\"%s\",\"new_counter_hex\":\"%s\",\"error\":%d}}",
+                     now, vcid, previous_hex == NULL ? "0" : previous_hex, new_hex == NULL ? "0" : new_hex, status);
+        }
+    }
+
+    static inline int32_t crypto_standalone_parse_counter_set_request(const uint8_t *data, uint16_t data_len,
+                                                                      uint8_t *vcid, const uint8_t **new_counter,
+                                                                      uint8_t *new_counter_len)
+    {
+        uint32_t payload_len;
+        uint16_t kind;
+
+        if (data == NULL || vcid == NULL || new_counter == NULL || new_counter_len == NULL ||
+            data_len < CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN)
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+        if (crypto_standalone_read_u32(&data[0]) != CRYPTO_STANDALONE_ENVELOPE_MAGIC ||
+            data[4] != CRYPTO_STANDALONE_ENVELOPE_VERSION || data[5] != CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN)
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+
+        kind = crypto_standalone_read_u16(&data[6]);
+        if (kind != CRYPTO_STANDALONE_ENVELOPE_KIND_ANTI_REPLAY_COUNTER_SET_REQUEST)
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+
+        payload_len = crypto_standalone_read_u32(&data[8]);
+        if (payload_len < CRYPTO_STANDALONE_COUNTER_SET_REQUEST_MIN_LEN ||
+            payload_len > (CRYPTO_STANDALONE_COUNTER_SET_REQUEST_MIN_LEN +
+                           CRYPTO_STANDALONE_COUNTER_SET_REQUEST_MAX_COUNTER_LEN) ||
+            payload_len != (uint32_t)(data_len - CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN))
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+
+        *vcid            = data[CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN];
+        *new_counter_len = data[CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN + 1];
+        if (*new_counter_len == 0 ||
+            payload_len != (uint32_t)(CRYPTO_STANDALONE_COUNTER_SET_REQUEST_MIN_LEN + *new_counter_len))
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+        *new_counter = &data[CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN + CRYPTO_STANDALONE_COUNTER_SET_REQUEST_MIN_LEN];
+        return CRYPTO_LIB_SUCCESS;
+    }
+
+    static inline uint8_t crypto_standalone_is_counter_set_request(const uint8_t *data, uint16_t data_len)
+    {
+        return data != NULL && data_len >= CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN &&
+               crypto_standalone_read_u32(&data[0]) == CRYPTO_STANDALONE_ENVELOPE_MAGIC &&
+               data[4] == CRYPTO_STANDALONE_ENVELOPE_VERSION &&
+               data[5] == CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN &&
+               crypto_standalone_read_u16(&data[6]) ==
+                   CRYPTO_STANDALONE_ENVELOPE_KIND_ANTI_REPLAY_COUNTER_SET_REQUEST;
+    }
+
+    static inline int32_t crypto_standalone_handle_counter_set_request(int sockfd, const struct sockaddr_in *addr,
+                                                                       const uint8_t *data, uint16_t data_len,
+                                                                       uint8_t use_tcp, uint8_t *handled)
+    {
+        char           previous_hex[CRYPTO_STANDALONE_COUNTER_HEX_MAX_LEN];
+        char           new_hex[CRYPTO_STANDALONE_COUNTER_HEX_MAX_LEN];
+        char           response[CRYPTO_STANDALONE_COUNTER_SET_RESPONSE_MAX_LEN];
+        const uint8_t *new_counter = NULL;
+        uint8_t        new_counter_len = 0;
+        uint8_t        vcid = 0;
+        int32_t        status;
+
+        if (handled == NULL)
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+        *handled = CRYPTO_FALSE;
+
+        if (crypto_standalone_is_counter_set_request(data, data_len) == 0)
+        {
+            return CRYPTO_LIB_SUCCESS;
+        }
+        *handled = CRYPTO_TRUE;
+
+        snprintf(previous_hex, sizeof(previous_hex), "0");
+        snprintf(new_hex, sizeof(new_hex), "0");
+        status = crypto_standalone_parse_counter_set_request(data, data_len, &vcid, &new_counter, &new_counter_len);
+        if (status == CRYPTO_LIB_SUCCESS)
+        {
+            status = crypto_standalone_set_antireplay_counter(vcid, new_counter, new_counter_len, previous_hex,
+                                                              sizeof(previous_hex), new_hex, sizeof(new_hex));
+        }
+
+        crypto_standalone_format_counter_set_response(response, sizeof(response), vcid, previous_hex, new_hex, status);
+        return crypto_standalone_send_status_envelope(sockfd, addr, response, use_tcp);
     }
 
     static inline int32_t crypto_standalone_send_envelope(int sockfd, const struct sockaddr_in *addr,
