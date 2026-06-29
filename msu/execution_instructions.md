@@ -40,7 +40,6 @@ docker run --rm -it \
   --add-host radio-sim:host-gateway \
   --add-host cosmos:host-gateway \
   -p 6010:6010/udp \
-  -p 8011:8011/udp \
   -v "$PWD:$PWD" \
   -w "$PWD/build/standalone" \
   ivvitc/cryptolib:dev \
