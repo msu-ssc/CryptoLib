@@ -78,6 +78,7 @@ extern "C"
 #define CRYPTO_STANDALONE_ENVELOPE_KIND_SECURITY_RESPONSE 1
 #define CRYPTO_STANDALONE_ENVELOPE_KIND_STATUS_MESSAGE    2
 #define CRYPTO_STANDALONE_ENVELOPE_KIND_ANTI_REPLAY_COUNTER_SET_REQUEST 3
+#define CRYPTO_STANDALONE_ENVELOPE_KIND_ANTI_REPLAY_ENFORCEMENT_SET_REQUEST 4
 #define CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN 28
 #define CRYPTO_STANDALONE_ENVELOPE_MAX_LEN    (CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN + (TC_MAX_FRAME_SIZE * 2))
 #define CRYPTO_STANDALONE_STATUS_TIMESTAMP_LEN 32
@@ -89,6 +90,8 @@ extern "C"
 #define CRYPTO_STANDALONE_COUNTER_SET_REQUEST_MIN_LEN 2
 #define CRYPTO_STANDALONE_COUNTER_SET_REQUEST_MAX_COUNTER_LEN MAX_IV_LEN
 #define CRYPTO_STANDALONE_COUNTER_SET_RESPONSE_MAX_LEN 512
+#define CRYPTO_STANDALONE_ANTI_REPLAY_ENFORCEMENT_SET_REQUEST_LEN 1
+#define CRYPTO_STANDALONE_ANTI_REPLAY_ENFORCEMENT_SET_RESPONSE_MAX_LEN 256
 
     /*
     ** Structures
@@ -620,6 +623,74 @@ extern "C"
         return crypto_standalone_send_status_envelope(sockfd, addr, response, use_tcp);
     }
 
+    static inline void crypto_standalone_format_anti_replay_enforcement_response(char *message, size_t message_len,
+                                                                                 uint8_t before, uint8_t after,
+                                                                                 int32_t status)
+    {
+        char now[CRYPTO_STANDALONE_STATUS_TIMESTAMP_LEN];
+
+        if (message_len == 0)
+        {
+            return;
+        }
+
+        crypto_standalone_current_time(now, sizeof(now));
+        if (status == CRYPTO_LIB_SUCCESS)
+        {
+            snprintf(message, message_len,
+                     "{\"current_time\":\"%s\",\"anti_replay_enforcement\":{\"before\":%s,\"after\":%s}}",
+                     now, before == CRYPTO_TRUE ? "true" : "false", after == CRYPTO_TRUE ? "true" : "false");
+        }
+        else
+        {
+            snprintf(message, message_len,
+                     "{\"current_time\":\"%s\",\"anti_replay_enforcement\":{\"before\":%s,\"after\":%s,"
+                     "\"error\":%d}}",
+                     now, before == CRYPTO_TRUE ? "true" : "false", after == CRYPTO_TRUE ? "true" : "false", status);
+        }
+    }
+
+    static inline uint8_t crypto_standalone_is_anti_replay_enforcement_set_request(const uint8_t *data,
+                                                                                   uint16_t data_len)
+    {
+        return data != NULL && data_len >= CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN &&
+               crypto_standalone_read_u32(&data[0]) == CRYPTO_STANDALONE_ENVELOPE_MAGIC &&
+               data[4] == CRYPTO_STANDALONE_ENVELOPE_VERSION &&
+               data[5] == CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN &&
+               crypto_standalone_read_u16(&data[6]) ==
+                   CRYPTO_STANDALONE_ENVELOPE_KIND_ANTI_REPLAY_ENFORCEMENT_SET_REQUEST;
+    }
+
+    static inline int32_t crypto_standalone_parse_anti_replay_enforcement_set_request(const uint8_t *data,
+                                                                                      uint16_t data_len,
+                                                                                      uint8_t *enforce)
+    {
+        uint32_t payload_len;
+
+        if (data == NULL || enforce == NULL || data_len < CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN)
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+        if (crypto_standalone_is_anti_replay_enforcement_set_request(data, data_len) == 0)
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+
+        payload_len = crypto_standalone_read_u32(&data[8]);
+        if (payload_len != CRYPTO_STANDALONE_ANTI_REPLAY_ENFORCEMENT_SET_REQUEST_LEN ||
+            payload_len != (uint32_t)(data_len - CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN))
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+        if (data[CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN] > 1)
+        {
+            return CRYPTO_LIB_ERROR;
+        }
+
+        *enforce = data[CRYPTO_STANDALONE_ENVELOPE_HEADER_LEN] == 1 ? CRYPTO_TRUE : CRYPTO_FALSE;
+        return CRYPTO_LIB_SUCCESS;
+    }
+
     static inline int32_t crypto_standalone_send_envelope(int sockfd, const struct sockaddr_in *addr,
                                                           const uint8_t *input, uint16_t input_len,
                                                           const uint8_t *output, uint16_t output_len,
@@ -739,6 +810,7 @@ extern "C"
         static const uint8_t             status_vcids[CRYPTO_STANDALONE_STATUS_VCID_COUNT] = {0, 2, 3};
         char                             now[CRYPTO_STANDALONE_STATUS_TIMESTAMP_LEN];
         crypto_standalone_vcid_status_t vcid_status[CRYPTO_STANDALONE_STATUS_VCID_COUNT];
+        const char                      *anti_replay_enforcement;
         int                              offset;
 
         if (message_len == 0)
@@ -749,6 +821,8 @@ extern "C"
         (void)attempt_label;
         memset(vcid_status, 0, sizeof(vcid_status));
         crypto_standalone_current_time(now, sizeof(now));
+        anti_replay_enforcement =
+            crypto_config_tc.ignore_anti_replay == TC_IGNORE_ANTI_REPLAY_FALSE ? "true" : "false";
 
         if (tracker != NULL)
         {
@@ -760,7 +834,8 @@ extern "C"
             pthread_mutex_unlock(&tracker->lock);
         }
 
-        offset = snprintf(message, message_len, "{\"current_time\":\"%s\",\"vcids\":{", now);
+        offset = snprintf(message, message_len, "{\"current_time\":\"%s\",\"anti_replay_enforcement\":%s,\"vcids\":{",
+                          now, anti_replay_enforcement);
         if (offset < 0 || (size_t)offset >= message_len)
         {
             message[message_len - 1] = '\0';

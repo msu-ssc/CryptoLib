@@ -50,6 +50,11 @@ static const char *crypto_standalone_process_anti_replay_mode(void)
     return tc_ignore_anti_replay == TC_IGNORE_ANTI_REPLAY_TRUE ? "ignore" : "enforce";
 }
 
+static uint8_t crypto_standalone_process_anti_replay_enforced(void)
+{
+    return crypto_config_tc.ignore_anti_replay == TC_IGNORE_ANTI_REPLAY_FALSE ? CRYPTO_TRUE : CRYPTO_FALSE;
+}
+
 static void crypto_standalone_process_print_usage(const char *program_name)
 {
     printf("Usage: %s [--anti-replay=ignore|enforce]\n", program_name);
@@ -99,6 +104,69 @@ static int32_t crypto_standalone_process_use_state_dir(void)
 static uint8_t crypto_standalone_process_vcid_requires_security(uint8_t vcid)
 {
     return (vcid == 2 || vcid == 3);
+}
+
+static int32_t crypto_standalone_process_set_anti_replay_enforcement(uint8_t enforce, uint8_t *before,
+                                                                      uint8_t *after)
+{
+    uint8_t new_ignore_anti_replay;
+    int32_t status;
+
+    if (before != NULL)
+    {
+        *before = crypto_standalone_process_anti_replay_enforced();
+    }
+
+    new_ignore_anti_replay = enforce == CRYPTO_TRUE ? TC_IGNORE_ANTI_REPLAY_FALSE : TC_IGNORE_ANTI_REPLAY_TRUE;
+    status                 = Crypto_Config_TC(crypto_config_tc.crypto_create_fecf, crypto_config_tc.process_sdls_pdus,
+                                              crypto_config_tc.has_pus_hdr, new_ignore_anti_replay,
+                                              crypto_config_tc.ignore_sa_state, crypto_config_tc.unique_sa_per_mapid,
+                                              crypto_config_tc.crypto_check_fecf, crypto_config_tc.vcid_bitmask,
+                                              crypto_config_tc.crypto_increment_nontransmitted_iv);
+    if (status == CRYPTO_LIB_SUCCESS)
+    {
+        tc_ignore_anti_replay = new_ignore_anti_replay;
+    }
+
+    if (after != NULL)
+    {
+        *after = crypto_standalone_process_anti_replay_enforced();
+    }
+
+    return status;
+}
+
+static int32_t crypto_standalone_process_handle_anti_replay_enforcement_request(int sockfd,
+                                                                                const struct sockaddr_in *addr,
+                                                                                const uint8_t *data,
+                                                                                uint16_t data_len, uint8_t *handled)
+{
+    char    response[CRYPTO_STANDALONE_ANTI_REPLAY_ENFORCEMENT_SET_RESPONSE_MAX_LEN];
+    uint8_t after = crypto_standalone_process_anti_replay_enforced();
+    uint8_t before = after;
+    uint8_t enforce = CRYPTO_FALSE;
+    int32_t status;
+
+    if (handled == NULL)
+    {
+        return CRYPTO_LIB_ERROR;
+    }
+    *handled = CRYPTO_FALSE;
+
+    if (crypto_standalone_is_anti_replay_enforcement_set_request(data, data_len) == 0)
+    {
+        return CRYPTO_LIB_SUCCESS;
+    }
+    *handled = CRYPTO_TRUE;
+
+    status = crypto_standalone_parse_anti_replay_enforcement_set_request(data, data_len, &enforce);
+    if (status == CRYPTO_LIB_SUCCESS)
+    {
+        status = crypto_standalone_process_set_anti_replay_enforcement(enforce, &before, &after);
+    }
+
+    crypto_standalone_format_anti_replay_enforcement_response(response, sizeof(response), before, after, status);
+    return crypto_standalone_send_status_envelope(sockfd, addr, response, 0);
 }
 
 static int32_t crypto_standalone_process_get_tc_vcid(const uint8_t *frame, uint16_t frame_len, uint8_t *vcid)
@@ -391,6 +459,19 @@ int main(int argc, char *argv[])
 
             tc_process_len = status;
             input_len      = (uint16_t)tc_process_len;
+            status = crypto_standalone_process_handle_anti_replay_enforcement_request(
+                tc_process.write.sockfd, &tc_process.write.saddr, tc_process_in, input_len, &control_request_handled);
+            if (control_request_handled == CRYPTO_TRUE)
+            {
+                if (status != CRYPTO_LIB_SUCCESS)
+                {
+                    printf("crypto_standalone_tc_process - Anti-replay enforcement reply error %d \n", status);
+                }
+                memset(tc_process_in, 0x00, sizeof(tc_process_in));
+                tc_process_len = 0;
+                continue;
+            }
+
             status = crypto_standalone_handle_counter_set_request(tc_process.write.sockfd, &tc_process.write.saddr,
                                                                   tc_process_in, input_len, 0,
                                                                   &control_request_handled);
