@@ -11,6 +11,11 @@ Provide a software-only solution using the CCSDS Space Data Link Security Protoc
 More information about building and usage of CryptoLib can be found within the repository Wiki:
 https://github.com/nasa/CryptoLib/wiki
 
+For the LEMS-A3 standalone tools, see [build and execution instructions](msu/execution_instructions.md).
+The separate [`support/Dockerfile.runtime`](support/Dockerfile.runtime) provides a minimal
+libgcrypt runtime for prebuilt Apply/Process executables; the existing development
+Dockerfile remains available for compiling CryptoLib and fuzz testing.
+
 # Contributions
 
 Please open an issue or discussion if you find any problems or have questions. We are a small team, but will try to respond in a timely fashion.

@@ -1,0 +1,12 @@
+# Runtime for prebuilt LEMS-A3 Apply/Process tools using the libgcrypt backend.
+# Build from the repository root:
+#   docker build -f support/Dockerfile.runtime -t msu-ssc/cryptolib-runtime:dev .
+# Mount the compiled tools, libcryptolib.so, and writable per-tool SADB state.
+# Compiling CryptoLib still requires support/Dockerfile.
+FROM ubuntu:noble-20250127
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgcrypt20 \
+    && rm -rf /var/lib/apt/lists/*
+
+CMD ["/bin/bash"]
